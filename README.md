@@ -18,8 +18,10 @@ Original Sankey extension, developped by John Park : <a href="http://branch.qlik
 Mike Bostock's Sankey chart : <a href="http://bost.ocks.org/mike/sankey">here</a><br>
 D3.js
 
+TODO: Check how the images work with measures.
 
-V1.0 Can color dimensions by expression. This is used to color the nodes. Retains options from original. Also color flow by expression.
+v0.2: Can now sort on dimensions. Assign dimension values a numeric value - choose ascending or descending.
+V0.1: Can color dimensions by expression. This is used to color the nodes. Retains options from original. Also color flow by expression.
 This creates a new measure under the surface solely dedicated to coloring flows. Have not tested with images.
 
 License

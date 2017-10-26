@@ -1,9 +1,9 @@
 {
 	"name": "SenseColorableSankey",
-	"description": "Colorable Sankey Graph for Qlik Sense. Based upon Xavier Pitre's version.",
+	"description": "Colorable Sankey Graph",
 	"icon": "extension",
 	"type": "visualization",
-	"version": 1.0,
+	"version": 0.2,
 	"preview" : "sankey.png",
-	"author": "Jonathan Vitale (forked from xavierlp)"
+	"author": "Jonathan M. Vitale"
 }

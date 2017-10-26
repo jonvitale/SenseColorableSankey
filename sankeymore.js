@@ -228,7 +228,7 @@ senseSankey = function() {
             i;
  
         // Push any overlapping nodes down.
-        nodes.sort(ascendingDepth);
+        nodes.sort(customSorting);
         for (i = 0; i < n; ++i) {
           node = nodes[i];
           dy = y0 - node.y;
@@ -251,7 +251,29 @@ senseSankey = function() {
         }
       });
     }
- 
+
+    // JV update 0.2: using a custom sorting function here that checks whether there is a sortVal, else use default procedure
+    function customSorting(a, b){
+      if (a.sortVal != null && b.sortVal != null){
+        if (typeof (a.sortVal) === "number" && typeof(b.sortVal) === "number"){
+          if (typeof a.sortDir === "undefined" || a.sortDir){
+            return a.sortVal - b.sortVal;
+          } else{
+            return b.sortVal - a.sortVal;
+          }          
+        } else {
+          if (typeof a.sortDir === "undefined" || a.sortDir){
+            return a.sortVal > b.sortVal ? 1 : (a.sortVal < b.sortVal ? -1 : 0);
+          } else {
+            return a.sortVal > b.sortVal ? -1 : (a.sortVal < b.sortVal ? 1 : 0);
+          }
+        }        
+      } else {
+        return a.y - b.y;
+      }
+    }
+
+    // not in use
     function ascendingDepth(a, b) {
       return a.y - b.y;
     }

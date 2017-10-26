@@ -1,8 +1,12 @@
 /**
 *	Jonathan Vitale
 *   Major code changes from Xavier Le Pitre's version 2.31
-*	
-*	v1.0: 
+*
+*	v0.2:
+*		- You can now sort each dimension by expression. Simply assign a numeric value to the dimension value
+*			and then you can sort on and switch whether you are ascending or descending
+*		- slightly smarter checking for pictures on measures (but still not really tested)
+*	v0.1: 
 *		- In the definition of dimensions, we now include options for coloring. Users first have the option of "auto" coloring.
 *			The auto color is random (not persistent). If auto is switched off a drop-down with several options appears, including
 *			random, single color, and expression. For random, persistence means that a node will always
@@ -12,7 +16,6 @@
 *			works in the same way as the dimensions, but creates a new measure. Use expressions like the following to color
 *				If(D1 = 10 and D2 = 20, '#FF0000', '#00000')
 *		- Turned on the exporting option.
-*		- lots of formatting clean up.
 **/
 
 requirejs.config({
@@ -37,7 +40,7 @@ define(
 		
 		'use strict';
 		Theme = JSON.parse(Theme);
-		var SenseColorableSankeyVersion = "1.0";
+		var SenseColorableSankeyVersion = "0.2";
 
 		$( "<style>" ).html( cssContent ).appendTo( "head" );
 		return {
@@ -75,8 +78,8 @@ define(
                                     	value: false,
                                         label: "Custom"
                                     }
-                                ]
-                                ,defaultValue: true
+                                ], 
+                                defaultValue: true
 							},
 							colorChoice:{
 								type:"string",
@@ -98,7 +101,6 @@ define(
 									} else {
 										return false;
 									}
-									return 
 								}	
 							},
 							// the following two objects are moved from the "Sankey Settings" section to here.
@@ -128,7 +130,7 @@ define(
 									{
 										value: "20a",
 										label: "Other Palette 20 colors"
-									},
+									}
 								],
 								defaultValue: "D3-20",
 								show : function(layout) {
@@ -141,7 +143,6 @@ define(
 									} else {
 										return false;
 									}
-									return 
 								}
 							},
 							colorPersistence:{
@@ -168,7 +169,6 @@ define(
 									} else {
 										return false;
 									}
-									return 
 								}
 							},
 							colorSingle:{
@@ -188,15 +188,13 @@ define(
 									} else {
 										return false;
 									}
-									return 
 								}
 							},
 							colorExpression:{
 								type: "string",
-								//component: "expression",
 								label: "Enter color expression",
-								ref:"qAttributeExpressions.0.qExpression",
-								expression:"optional",
+								ref: "qAttributeExpressions.0.qExpression",
+								component: "expression",
 								show : function(layout) {
 									if (typeof layout === 'object'){
 										if (typeof layout.qDef.myColorSelection === 'object' && typeof layout.qDef.myColorSelection.choice !== 'undefined'){
@@ -207,7 +205,66 @@ define(
 									} else {
 										return false;
 									}
-									return 
+								}
+							},
+							sortSwitch:{
+								type: "boolean",
+								component: "switch",
+								label: "Sort",
+								ref:"qDef.mySortSelection.auto",
+								options: [
+									{
+                                    	value: true,
+                                    	label: "Auto"
+                                	}, {
+                                    	value: false,
+                                        label: "Expression"
+                                    }
+                                ], 
+                                defaultValue: true
+							},
+							sortExpression:{
+								type: "string",
+								label: "Enter sorting expression",
+								ref: "qAttributeExpressions.1.qExpression",
+								component: "expression",
+								show : function(layout) {
+									if (typeof layout === 'object'){
+										if (typeof layout.qDef.mySortSelection === 'object' && typeof layout.qDef.mySortSelection.auto !== 'undefined'){
+											return !layout.qDef.mySortSelection.auto;
+										} else { 
+											return false;
+										}
+									} else {
+										return false;
+									}
+								}
+							},
+							sortAscending:{
+								type: "boolean",
+								component: "switch",
+								label: "Sort Direction",
+								ref:"qDef.mySortSelection.ascending",
+								options: [
+									{
+                                    	value: true,
+                                    	label: "Ascending"
+                                	}, {
+                                    	value: false,
+                                        label: "Descending"
+                                    }
+                                ], 
+                                defaultValue: true,
+                                show : function(layout) {
+									if (typeof layout === 'object'){
+										if (typeof layout.qDef.mySortSelection === 'object' && typeof layout.qDef.mySortSelection.auto !== 'undefined'){
+											return !layout.qDef.mySortSelection.auto;
+										} else { 
+											return false;
+										}
+									} else {
+										return false;
+									}
 								}
 							}
 						}				
@@ -217,15 +274,12 @@ define(
 						min: 1,
 						max: 3
 					},
-					//sorting: {
-					//	uses: "sorting"
-					//},
-							
+								
 					SankeyGroup: {
 						label: "Sankey Settings",
 						component:"expandable-items",
 						items : {
-							FlowOpts:{
+							FlowOps: {
 								label : "Flow Options",
 								type:"items",
 								items : {
@@ -236,7 +290,7 @@ define(
 										defaultValue: 500,
 										min : 10,
 										max : 2000
-									},								
+									},									
 									Separateur:{
 										ref: "displaySeparateur",
 										type: "string",
@@ -279,17 +333,17 @@ define(
 											label: "1000"
 											},
 										],
-											defaultValue: "Number"
+										defaultValue: "Number"
 									},
-
 									currencySymbol:{
 										type: "string",
 										label: "Currency Symbol",
 										ref: "currencySymbol",
 										defaultValue: "€"
-									}															
-								}	
-							},
+									}
+
+								},
+							},	
 							FlowColors:{
 								label : "Flow Colors",
 								type:"items",
@@ -318,7 +372,7 @@ define(
 										options: [
 											{label: "Random", value:"random"},
 											{label: "Single color", value:"single"},
-											{label: "By expression", value:"expression"}
+											{label: "By 2nd Measure", value:"expression"}
 										],
 										show : function(layout) {
 											if (typeof layout === 'object'){
@@ -418,28 +472,9 @@ define(
 												return false;
 											} return
 										}
-									},
-									flowColorExpression:{										
-										type: "string",
-										component: "expression",
-										label: "Enter color expression",
-										ref:"qHyperCubeDef.qMeasures.1.qDef.qDef",
-										//expression:"always",
-										show : function(layout) {
-											if (typeof layout === 'object'){
-												if (typeof layout.myFlowColorSelection === 'object' && typeof layout.myFlowColorSelection.choice !== 'undefined'){
-													return !layout.myFlowColorSelection.auto && layout.myFlowColorSelection.choice === 'expression';
-												} else { 
-													return false;
-												}
-											} else {
-												return false;
-											}
-											return										
-										}
 									}
 								}
-							},						
+							},								
 							manageImages: {
 								type:"items",
 								label:"Images (beta)",
@@ -451,7 +486,6 @@ define(
 										label : "Display Image for 1st and last Dimension",
 										defaultValue: false,
 									},
-
 									useMeasure : {
 										ref: "useMeasure",
 										type: "boolean",
@@ -466,7 +500,7 @@ define(
 										{
 											value: true,
 											label: "Measures",
-											tooltip: "2nd and 3rd Measure contain the image"
+											tooltip: "Last and 2nd to last Measures contain the image"
 										}],
 										defaultValue: true,
 										show : function(layout) {return layout.useImage}
@@ -479,12 +513,11 @@ define(
 										label: "1st and last dimensions will be used to build the image",
 										show: function(layout) { if( layout.useMeasure == true ){ return false } else { return true } }
 									},
-
 									dimensionImageDescMeasure:{
 										ref: "dimensionImageDescM",
 										type: "string",
 										component: "text",
-										label: "2nd and 3rd Measure contain the image",
+										label: "Last and 2nd to last Measures contain the image",
 										show: function(layout) { if( layout.useMeasure == true ){ return true } else { return false } }
 									},
 									
@@ -493,10 +526,10 @@ define(
 										type: "string",
 										label: "Extension of the image file",
 										defaultValue: "png",
-										show: function(layout)  { if (layout.useImage) 
-													{ 
+										show: function(layout)  { 
+											if (layout.useImage) { 
 												if (layout.useMeasure) { return false } else { return true } 
-												}
+											}
 										}
 									},
 									imageLeft:{
@@ -542,7 +575,8 @@ define(
 										expression: "optional",
 										defaultValue: "",
 										show: function(layout)  { if( layout.useImage ){ return true } else { return false } }
-									},									
+									},
+									
 									
 									sizeImage:{
 										ref: "sizeImage",
@@ -554,24 +588,22 @@ define(
 										show: function(layout)  { if( layout.useImage ){ return true } else { return false } }
 									},
 								}
-							},
-								
+							},								
 							managemoreDimension:{
 								type:"items",
 								label:"Manage 7 and more Dimensions",
 								items: {
-									moreDimension: {
+									moreDimension:{
 										ref: "moreDimension",
 										component: "switch",
 										type: "boolean",
 										label: "Manage more than 4 dimensions",
 										defaultValue: false,
 										trueOption: {
-											value: true,
-										
+											value: true										
 										},
 										falseOption: {
-											value: false												
+											value: false										
 										},
 										show: true
 									},
@@ -601,8 +633,7 @@ define(
 			},
 			snapshot: {
 				canTakeSnapshot: true
-			},
-				
+			},			
 			support : {
 				export: true
 			},
@@ -630,8 +661,8 @@ define(
 						return formatMoney(value, 2, '.', ' ',currencySymbol,context);
 					}
 				}		
-			 
-			 
+				 
+				 
 				// Persistent color function
 				var hashScale = d3.scale.linear().domain([1, 4294967295]).range([ 0, 19.9999 ]);
 				
@@ -644,15 +675,17 @@ define(
 					//hash = md5(str)
 				  return hashL >>> 0;
 				}
-												
+				
+				
+						
 				var _this 			= this;
 				var maxHeight         = (layout.flowMax === undefined ? 500 : layout.flowMax);
 				  
 				var displayFormat     = layout.displayFormat;
 				var currencySymbol	= " " + layout.currencySymbol;
 				var displaySeparateur = layout.displaySeparateur;
-				//var displayPalette    = layout.displayPalette;
-				//var colorPersistence  = layout.colorPersistence;
+				var displayPalette    = layout.displayPalette;
+				var colorPersistence  = layout.colorPersistence;
 				var useImage  		= layout.useImage;
 				var useMeasure		= (layout.useMeasure === undefined ? true : layout.useMeasure);
 				var imageRight		= (layout.imageRight === undefined ? true : layout.imageRight);
@@ -666,14 +699,21 @@ define(
 				var separator			= (layout.separateur === undefined ? "§" : layout.separateur);
 				var nbImageDrawn		= 0;
 				  
+
+				//var flowColor = (layout.flowChoice == 2) ? layout.flowColorCustom : Theme.palette[layout.flowColor];
+				//var flowColor = layout.flowColorCustom.color;
 				  
 				var qData = layout.qHyperCube.qDataPages[0];
-				// create a new array that contains the dimension labels
+				  // create a new array that contains the dimension labels
 				var qDim  = layout.qHyperCube.qDimensionInfo.map(function(d) {
 					return d.qFallbackTitle;
 				});
-				// create a new object array with user defined color parameters for dimension
-				var qDimUser = layout.qHyperCube.qDimensionInfo.map(function(d){
+
+				var divName 	= layout.qInfo.qId;
+				var qMatrix 	= qData.qMatrix.sort();
+
+				// JV Update v.1:  create a new object array with user defined color and sort parameters for dimension
+				var qDimColorUser = layout.qHyperCube.qDimensionInfo.map(function(d){
 					var m = typeof d.myColorSelection !== "undefined" ? d.myColorSelection : {};
 					return {
 						auto: typeof m.auto !== "undefined" ? m.auto : true,
@@ -682,81 +722,110 @@ define(
 						displayPalette: typeof m.displayPalette !== "undefined" ? m.displayPalette : "D3-20c",
 						single: typeof m.single !== "undefined" ? m.single : "#4477aa"
 					}
-				});
-
-				// create a new object array with user defined color parameters for flow
+				});  
+				// JV Update v.2: same for sorting
+				var qDimSortUser = layout.qHyperCube.qDimensionInfo.map(function(d){
+					var m = typeof d.mySortSelection !== "undefined" ? d.mySortSelection : {};
+					return {
+						auto: typeof m.auto !== "undefined" ? m.auto : true,
+						ascending: typeof m.ascending !== "undefined" ? m.ascending : true
+					}
+				});  
+				// JV Update v.1: create a new object array with user defined color parameters for flow
 				var m = typeof layout.myFlowColorSelection !== "undefined" ? layout.myFlowColorSelection : {};
 				var qFlowUser = {
-						auto: typeof m.auto !== "undefined" ? m.auto : true,
-						choice: typeof m.choice !== "undefined" ? m.choice : "random",
-						colorPersistence: typeof m.colorPersistence !== "undefined" ? m.colorPersistence : false,
-						displayPalette: typeof m.displayPalette !== "undefined" ? m.displayPalette : "D3-20c",
-						single: typeof m.single !== "undefined" ? m.single : "#4477aa"
+					auto: typeof m.auto !== "undefined" ? m.auto : true,
+					choice: typeof m.choice !== "undefined" ? m.choice : "random",
+					colorPersistence: typeof m.colorPersistence !== "undefined" ? m.colorPersistence : false,
+					displayPalette: typeof m.displayPalette !== "undefined" ? m.displayPalette : "D3-20c",
+					single: typeof m.single !== "undefined" ? m.single : "#4477aa"
 				}
-				  
-				var divName 	= layout.qInfo.qId;
-				var qMatrix 	= qData.qMatrix.sort();
+				// JV Update v.1:  for choice of expression, make sure there are at least two measures, the second one will be our expression
+				if (!qFlowUser.auto && qFlowUser.choice == "expression"){
+					if (qMatrix[0].length - qDim.length < 2){
+						// set to auto, not enough measures
+						qFlowUser.auto = true;
+					}
+				}
 
-				// iterates through each row
+				// iterate through each row of the hypercube data
 				var source 		= qMatrix.map(function(d) {					  
 					var path 		= ""; 
 					var sep 		= ""; 
 					var nbDimension = 0;
 					var nbDimension = qDim.length;
 					var nbMesures 	= qMatrix[0].length- nbDimension;
-					var finalIndex = qMatrix[0].length - 1;
 					var nbTotal 	= nbMesures+nbDimension;
 					var colors = [];
+					var sortVals = [];
+					var sortDirs = [];
 					var flowColor = "#888888";
-					//for (var i = 0; i < d.length - 1; i++) {
 					
-					for (var i = 0; i < nbDimension; i++) {
+					for (var i = 0; i < nbDimension ; i++) {
 						path += sep + (d[i].qText.replace('|', ' ')) + '|' + (d[i].qElemNumber); 
 						sep = separator;
-					}			
-
-					// JV UPDATE: This now does the work of coloring the nodes
-					// I removed the function "getColorForNode"
-					// new code for coloring the dimensions by either random (default), random (persistent), single, or expression
+					}
+					
+					// JV UPDATE v0.1: This now does the work of coloring the nodes
+						// I removed the function "getColorForNode"
+						// new code for coloring the dimensions by either random (default), random (persistent), single, or expression
 					for (var i = 0; i < nbDimension; i++){
 						// first we check what style of coloring to use
-						if (qDimUser[i].auto==true || qDimUser[i].choice == "random"){
+						if (qDimColorUser[i].auto==true || qDimColorUser[i].choice == "random"){
 							//strValue = d[i].qText;
-							if (qDimUser[i].displayPalette === "D3-20") {
+							if (qDimColorUser[i].displayPalette === "D3-20") {
 								var colours = ['#1f77b4','#aec7e8','#ff7f0e','#ffbb78','#2ca02c','#98df8a','#d62728','#ff9896','#9467bd','#c5b0d5','#8c564b',
 												'#c49c94','#e377c2','#f7b6d2','#7f7f7f','#c7c7c7','#bcbd22','#dbdb8d','#17becf','#9edae5' ];
 							}
-							else if (qDimUser[i].displayPalette === "D3-20b") {
+							else if (qDimColorUser[i].displayPalette === "D3-20b") {
 								var colours = ['#393b79','#5254a3','#6b6ecf','#9c9ede','#637939','#8ca252','#b5cf6b','#cedb9c','#8c6d31','#bd9e39',
 								'#e7ba52','#e7cb94','#843c39','#ad494a','#d6616b','#e7969c','#7b4173','#a55194','#ce6dbd','#de9ed6'];
 							}
-							else if (qDimUser[i].displayPalette === "D3-20c") {
+							else if (qDimColorUser[i].displayPalette === "D3-20c") {
 								var colours = ['#3182bd','#6baed6',	'#9ecae1','#c6dbef','#e6550d','#fd8d3c','#fdae6b','#fdd0a2','#31a354',
 									'#74c476','#a1d99b','#c7e9c0','#756bb1','#9e9ac8','#bcbddc','#dadaeb','#636363','#969696','#bdbdbd','#d9d9d9' ];
 							}
-							else if (qDimUser[i].displayPalette === "20") {
+							else if (qDimColorUser[i].displayPalette === "20") {
 								var colours = [ '#1abc9c','#7f8c8d','#2ecc71','#bdc3c7','#3498db','#c0392b','#9b59b6','#d35400','#34495e','#f39c12',
 									'#16a085','#95a5a6','#27ae60','#ecf0f1','#2980b9','#e74c3c','#8e44ad','#e67e22','#2c3e50','#f1c40f' ];
 							}
-							else if (qDimUser[i].displayPalette === "20a") {
+							else if (qDimColorUser[i].displayPalette === "20a") {
 								var colours = [ '#023FA5','#7D87B9','#BEC1D4','#D6BCC0','#BB7784','#FFFFFF','#4A6FE3','#8595E1','#B5BBE3','#E6AFB9',
 								'#E07B91','#D33F6A','#11C638','#8DD593','#C6DEC7','#EAD3C6','#F0B98D','#EF9708','#0FCFC0','#9CDED6'];
 							}			
-							if (qDimUser[i].auto==true || !qDimUser[i].colorPersistence){
+							if (qDimColorUser[i].auto==true || !qDimColorUser[i].colorPersistence){
 								colors = colors.concat(colours[Math.floor(Math.random() * (19))]);
 							} else {
 								colors = colors.concat(colours[parseInt(Math.floor(hashScale(hashL(md5(path)))))]);
 							}							
-						} else if (qDimUser[i].choice == "single"){
-							colors = colors.concat(typeof qDimUser[i].single === "object" ? qDimUser[i].single.color : qDimUser[i].single);
-						} else if (qDimUser[i].choice == "expression" && typeof d[i].qAttrExps.qValues !== "undefined" && d[i].qAttrExps.qValues.length >= 0 && typeof d[i].qAttrExps.qValues[0].qText !== "undefined") {
+						} else if (qDimColorUser[i].choice == "single"){
+							colors = colors.concat(typeof qDimColorUser[i].single === "object" ? qDimColorUser[i].single.color : qDimColorUser[i].single);
+						} else if (qDimColorUser[i].choice == "expression" && typeof d[i].qAttrExps.qValues !== "undefined" && d[i].qAttrExps.qValues.length >= 0 && typeof d[i].qAttrExps.qValues[0].qText !== "undefined") {
 							colors = colors.concat(d[i].qAttrExps.qValues[0].qText);
 						} else {
 							colors = colors.concat("#888888"); //may happen if expression fails
 						}						
 					}	
 
-					// what color should the flow be
+					// JV UPDATE v0.2: same with sorting 
+					for (var i = 0; i < nbDimension; i++){
+						// first we check if we are doing expression-based sorting
+						if (qDimSortUser[i].auto==true || d[i].qAttrExps.qValues.length < 2){
+							sortVals = sortVals.concat(null); // will use default	
+							sortDirs = sortDirs.concat(true);
+						} else {
+							if (typeof d[i].qAttrExps.qValues[1].qNum !== "undefined"){
+								sortVals = sortVals.concat(d[i].qAttrExps.qValues[1].qNum);
+							} else if (typeof d[i].qAttrExps.qValues[1].qText !== "undefined"){
+								sortVals = sortVals.concat(d[i].qAttrExps.qValues[1].qText);
+							} else {
+								sortVals = sortVals.concat(null);
+							}
+							sortDirs = sortDirs.concat(qDimSortUser[i].ascending);
+						}
+					}
+
+					// JV Update v0.1: what color should the flow be
 					if (qFlowUser.auto==true || qFlowUser.choice == "random"){
 						//strValue = d[i].qText;
 						if (qFlowUser.displayPalette === "D3-20") {
@@ -786,97 +855,78 @@ define(
 						}							
 					} else if (qFlowUser.choice == "single"){
 						flowColor = typeof qFlowUser.single === "object" ? qFlowUser.single.color : qFlowUser.single;
-					} else if (qFlowUser.choice == "expression" && typeof d[finalIndex].qText !== "undefined") {
-						flowColor = d[finalIndex].qText;
+					} else if (qFlowUser.choice == "expression" && typeof d[nbDimension + 1].qText !== "undefined") {
+						flowColor = d[nbDimension + 1].qText;
 					} else {
 						flowColor = "#888888"; //may happen if expression fails
-					}				
-						
-					// needed if statements here to check whether there is a flow color expression		
-					if (nbMesures == 4 && !qFlowUser.auto && qFlowUser.choice == "expression"){
-						return {
-							"Colors": colors,
-							"FlowColor": flowColor,
-							"Path": path,
-							"Frequency": d[nbDimension].qNum,
-							"Photogauche": d[nbTotal-2].qText,
-							"Photodroite": d[nbTotal-1].qText
-							}
-					} else if (nbMesures == 3 && !qFlowUser.auto && qFlowUser.choice == "expression"){	
-						return {
-							"Color": colors,
-							"FlowColor": flowColor,
-							"Path": path,
-							"Frequency": d[nbDimension].qNum,
-							"Photogauche": d[nbTotal-1].qText
+					}	
+
+					// JV Update: add on the image stuff only if needed
+					// btw, gauche is left in French, droite is right	
+					var sourceOut = {
+						"Colors": colors,
+						"FlowColor": flowColor,
+						"Path": path,
+						"Frequency": d[nbDimension].qNum,
+						"SortVals": sortVals,
+						"SortDirs": sortDirs				
+					}	
+					// add the image stuff, if we using images on both sides, 2nd to last measure is left, last is right
+					// if only using either left or right, use last measure
+					if (useImage && useMeasure){
+						if (imageLeft && imageRight){
+							sourceOut['Photogauche'] = d[nbTotal-2].qText;
+							sourceOut['Photodroite'] = d[nbTotal-1].qText;
+						} else if (imageLeft && !imageRight){
+							sourceOut['Photogauche'] = d[nbTotal-1].qText;
+						} else if (!imageLeft && imageRight){
+							sourceOut['Photodroite'] = d[nbTotal-1].qText;
 						}
-					} else if (nbMesures == 3 && qFlowUser.choice != "expression"){	
-						return {
-							"Colors": colors,
-							"FlowColor": flowColor,
-							"Path": path,
-							"Frequency": d[nbDimension].qNum,
-							"Photogauche": d[nbTotal-2].qText,
-							"Photodroite": d[nbTotal-1].qText
-						}
-					} else if (nbMesures == 2 && qFlowUser.choice != "expression"){	
-						return {
-							"Color": colors,
-							"FlowColor": flowColor,
-							"Path": path,
-							"Frequency": d[nbDimension].qNum,
-							"Photogauche": d[nbTotal-1].qText
-						}
-					} else {	
-						return {
-							"Color": colors,
-							"FlowColor": flowColor,
-							"Path": path,
-							"Frequency": d[nbDimension].qNum
-						}
-					}					
+					}
+					return sourceOut;
 				});
-			
+				
 
 				var id = "sk_"+ layout.qInfo.qId;
-					  
-			  	if (document.getElementById(id)) {
+						  
+				if (document.getElementById(id)) {
 					$("#" + id).empty();
-			  	} else {
+				} else {
 					$element.append($('<div />').attr("id", id));        
-			   	}
-			  	$("#" + id).width($element.width()).height($element.height());
-			  
-			  	var sLinks = [];
-			  	var endArr = [];
-			  	var catArray = [];
-			
-			 	//********Creates Duplicate IDs*************
-			  	//		$element.attr("id",id)
-			  	//******************************************
-			  	//var td = _this.Data;
-			  	var sNodes = [];
-			  	var jNodes = [];
-			  	var rev = 0; //permet de pivoter les dimensions
-			  
-			 
-			  	source=source.slice(0,maxHeight);
-			  	//source foreach
+				}
+				$("#" + id).width($element.width()).height($element.height());
+				
+				var sLinks = [];
+				var endArr = [];
+				var catArray = [];
+				
+				//********Creates Duplicate IDs*************
+				//		$element.attr("id",id)
+				//******************************************
+				//var td = _this.Data;
+				var sNodes = [];
+				var jNodes = [];
+				var rev = 0; //permet de pivoter les dimensions
+				  
+				 
+				source=source.slice(0,maxHeight);
+				
 				source.forEach(function(d) {
-			 		//var row = d;
-				  	var path = d.Path;
-				  	var val = parseFloat(d.Frequency);
-				  	if(val > 0) {
+					//var row = d;
+					var path = d.Path;
+					var val = parseFloat(d.Frequency);
+					if(val > 0) {
 						var tArr = path.split(separator);  
-						var colors = d.Color;
-				  		//tArr.sort();
+						var colors = d.Colors;
+						var sortVals = d.SortVals;
+						var sortDirs = d.SortDirs;
+						//tArr.sort();
 						if (rev == "1") {
 							tArr.reverse();
 							colors.reverse();
 						} 	 	
 						if (tArr.length > 1) {
-							$.each(tArr, function(i) {
-							
+							$.each(tArr, function(i) {							
 								if(tArr.length === (i + 1)){
 									tArr[i] = this.toString().trim() + "~end";
 								} else {
@@ -887,47 +937,50 @@ define(
 								if ($.inArray(this.toString().trim(), sNodes) === -1) {
 									sNodes.push(this.toString().trim());
 									jNodes.push({name: this.toString().trim(),
-												 color: colors[i]});
+												 color: colors[i],
+												 sortVal: sortVals[i],
+												 sortDir: sortDirs[i]
+												});
 								}
 							});
 						}
 					}
 				});
 
+
 				//source foreach
 				source.forEach(function(d) {
-				  	//var row = d;
-				  	var path = d.Path
-				  	var val = parseFloat(d.Frequency);
-				  	var flowColor = d.FlowColor;
+					//var row = d;
+					var path = d.Path
+					var val = parseFloat(d.Frequency);
+					var flowColor = d.FlowColor;
 				  
-				  	if (useMeasure == true) {
+					if (useMeasure == true) {
 					   var photog = d.Photogauche;
 					   var photod = d.Photodroite;
-				 	}
+				  	}
 				 
-				 	if(val > 0) {
-					 	var tArr = path.split(separator);  
-				  
-					  	if (rev == "1") {
+				  	if(val > 0) {
+				  		var tArr = path.split(separator);  
+			  
+				  		if (rev == "1") {
 							tArr.reverse();
-					  	} 	 	
-					  	
-					  	if (tArr.length > 1) {
+						} 	 	
+				  		if (tArr.length > 1) {
 							$.each(tArr, function(i) {
-								
+							
 								if(tArr.length === (i + 1)){
 									tArr[i] = this.toString().trim() + "~end";
 								} else {
 									tArr[i] = this.toString().trim() + "~" + i;	
 								}
 							});
-						
+					
 							$.each(tArr, function(i) {
 								var tFlag = "no";
 								if ((i + 1) != tArr.length) {
 									////console.info(this.toString().trim() + " to " + tArr[i + 1]);
-									var cS = $.inArray(this.toString().trim(), sNodes); 
+									var cS = $.inArray(this.toString().trim(), sNodes);
 									var cT = $.inArray(tArr[i + 1].toString().trim(), sNodes);
 
 									//////console.info(cT + " " + cS);
@@ -963,8 +1016,8 @@ define(
 						}
 					}
 				});
-			
 				
+					
 			  // Ajuste le graph si image droite ou gauche
 			  if(useImage == true) {
 				if(imageRight == true && imageLeft == true) {
@@ -1124,16 +1177,16 @@ define(
 								//if (useMeasure === true && imageLeft == true ) {
 								if (useMeasure === true) {
 									if (position == 0 && imageLeft == true) { //pour le premier c'est toujours photogauche
-										nameImage = d.sourceLinks[0].Photogauche;
+										nameImage=d.sourceLinks[0].Photogauche;
 									}
 									if (position != 0 && imageRight == true) { //pour le dernier c'est toujours photodroite
-										nameImage = d.targetLinks[0].Photodroite;
+										nameImage=d.targetLinks[0].Photodroite;
 									}
 									
 								}
 								else { //on utilise les dimensions
 									if ((imageLeft == true && position == 0) || (imageRight == true && position == qDim.length -1 ) ){
-										nameImage = d.name.substring(0, d.name.indexOf("~")).split('|')[0];
+										nameImage=d.name.substring(0, d.name.indexOf("~")).split('|')[0];
 										nameImage = nameImage + "." + extensionImage;
 									}
 								}
@@ -1172,34 +1225,34 @@ define(
 						
 					tooltip.html("<b>"+entete+"</b><br/>"+value);			
 					return tooltip.style("visibility", "visible").style("top",(d3.event.pageY+10)+"px").style("left",(d3.event.pageX+10+edgeMargin)+"px");
-					})
-					.on("mousemove", function(d){
-						var edgeMargin= 0;
-						var level = d.name.substr(d.name.indexOf("~")+1,1);
-						// test si on est à la fin du flux ou pas
-						if (level === "e" ){
-							level = qDim.length -1;
-							edgeMargin=-80;
-						}
-						
-						var entete = qDim[level] + ' : ' + d.name.split('|')[0];		
-						var value=formatNumber(displayFormat,d.value,'',currencySymbol);
-							
-				
-						tooltip.html("<b>"+entete+"</b><br/>"+value);
-						return tooltip.style("top",(d3.event.pageY+10)+"px").style("left",(d3.event.pageX+10+edgeMargin)+"px");
-					})
-					.on("mouseout", function(){
-						return tooltip.style("visibility", "hidden");
-					});
-						
-					/*
-					 function dragmove(d) {
-					  d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height - d.dy, d3.event.y))) + ")");
-					  sankey.relayout();
-					  link.attr("d", path);
+				})
+				.on("mousemove", function(d){
+					var edgeMargin= 0;
+					var level = d.name.substr(d.name.indexOf("~")+1,1);
+					// test si on est à la fin du flux ou pas
+					if (level === "e" ){
+						level = qDim.length -1;
+						edgeMargin=-80;
 					}
-					*/
+					
+					var entete = qDim[level] + ' : ' + d.name.split('|')[0];		
+					var value=formatNumber(displayFormat,d.value,'',currencySymbol);
+						
+			
+					tooltip.html("<b>"+entete+"</b><br/>"+value);
+					return tooltip.style("top",(d3.event.pageY+10)+"px").style("left",(d3.event.pageX+10+edgeMargin)+"px");
+				})
+				.on("mouseout", function(){
+					return tooltip.style("visibility", "hidden");
+				});
+				
+			/*
+			 function dragmove(d) {
+			  d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height - d.dy, d3.event.y))) + ")");
+			  sankey.relayout();
+			  link.attr("d", path);
+			}
+			*/
 			}        
 		};
 } );
