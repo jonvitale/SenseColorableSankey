@@ -1,45 +1,32 @@
-# SenseSankey
-Qlik Sense Sankey Extension
+# SenseColorableSankey
+Qlik Sense Colorable Sankey Extension
 
-Developed by Xavier Le Pitre, based on D3.js
+Developed by Jonathan Vitale - School District of Philadelphia
 
-Display data with Sankey diagram.
+Display data with Sankey diagram, whose nodes and links can be colored by expression
 Typically used to visualize cost, energy or flows between processes. Helpful in locating dominant contributions to an overall flow. 
 The size of each flow is calculated by the value.
 
 The extension is based on :
 
-Original radar chart extension, developped by John Park : <a href="http://branch.qlik.com/#/project/56728f52d1e497241ae697c5">here</a><br>
+An updated Sense Sankey developed by Xavier Le Pitre, 
+forked from the original Sense Sankey diagram by John Park
+based on D3.js
+
+The updated Sankey chart extension, developed by Xavier Le Pitre : <a href="http://branch.qlik.com/#!/project/568aa0b06ed0f0f47a89d7f2">here</a><br>
+Original Sankey extension, developped by John Park : <a href="http://branch.qlik.com/#/project/56728f52d1e497241ae697c5">here</a><br>
 Mike Bostock's Sankey chart : <a href="http://bost.ocks.org/mike/sankey">here</a><br>
 D3.js
 
-V2.31 Add Images at the start and then end of the flow
-		+ Manage 6 dimensions and more
-		
-![alt tag](images/sankeyphoto.png)
 
-
-V2.2 Correct the comma issue
-
-V2.1 Resolved conflict with other extensions made by Brixm 
-
-V2.0 New color Selection to be compatible with QlikSense 3.1 SR2 
-
-V1.4 add clickables links
-
-V1.3.1 Correct data with commas + Choice of device symbol.
-
-V1.3 Add new option for persistent colors
-
-
-
-![alt tag](images/animation.gif)
+V1.0 Can color dimensions by expression. This is used to color the nodes. Retains options from original. Also color flow by expression.
+This creates a new measure under the surface solely dedicated to coloring flows. Have not tested with images.
 
 License
 
 Please, if you update this extension feel free to send me your pull requests to help others users to enjoy all features!
 
-Troubleshooting
+Troubleshooting (taken from Xavier's version)
 If you install Qlik Sense and the Extensions as instructed but get the error “Invalid Visualization”, it most likely is because Qlik Sense occasionally has problems with its cache. To resolve this issue you need to clear the browser cache, but how you do that depends on how you run Qlik Sense.
 
 Below you will find a short step by step guide on how to clear the cache depending on how you run Qlik Sense desktop. Terminology may differ between languages but the functionality should be the same.
@@ -91,7 +78,7 @@ Once an app is working the cache should not be a problem again.
 
 The MIT License (MIT)
 
-Copyright (c) 2015 Xavier Le Pitre
+Copyright (c) 2017 Jonathan Michael Vitale
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 

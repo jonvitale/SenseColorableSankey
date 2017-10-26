@@ -1,9 +1,0 @@
-{
-	"name": "SenseSankey",
-	"description": "Sankey Graph",
-	"icon": "extension",
-	"type": "visualization",
-	"version": 1.2,
-	"preview" : "sankey.png",
-	"author": "QlikTech International AB"
-}
