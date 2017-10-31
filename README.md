@@ -3,9 +3,9 @@ Qlik Sense Colorable Sankey Extension
 
 Developed by Jonathan Vitale - School District of Philadelphia
 
-Display data with Sankey diagram, whose nodes and links can be colored by expression
+Display data with Sankey diagram, whose nodes and links can be colored by dimension expressions.
 Typically used to visualize cost, energy or flows between processes. Helpful in locating dominant contributions to an overall flow. 
-The size of each flow is calculated by the value.
+The size of each flow is calculated by the value in the first measure.
 
 The extension is based on :
 
@@ -20,6 +20,7 @@ D3.js
 
 TODO: Check how the images work with measures.
 
+v0.3: Flow color is now determined at the dimension level. Will hide dimensions with missing data. Exports to image.
 v0.2: Can now sort on dimensions. Assign dimension values a numeric value - choose ascending or descending.
 V0.1: Can color dimensions by expression. This is used to color the nodes. Retains options from original. Also color flow by expression.
 This creates a new measure under the surface solely dedicated to coloring flows. Have not tested with images.
