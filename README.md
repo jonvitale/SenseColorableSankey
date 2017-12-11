@@ -20,6 +20,7 @@ D3.js
 
 TODO: Check how the images work with measures.
 
+v0.4: Provide link and node options to eliminate text and have minimum size.
 v0.3: Flow color is now determined at the dimension level. Will hide dimensions with missing data. Exports to image.
 v0.2: Can now sort on dimensions. Assign dimension values a numeric value - choose ascending or descending.
 V0.1: Can color dimensions by expression. This is used to color the nodes. Retains options from original. Also color flow by expression.

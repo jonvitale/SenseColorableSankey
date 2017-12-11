@@ -2,6 +2,10 @@
 *	Jonathan Vitale
 *   Major code changes from Xavier Le Pitre's version 2.31
 *
+*	v0.4:
+*		- if data is very large will incrementally grow data (using backend api to grow hypercube in callback paint functions).
+*		- TODO: Hide nodes with a given text, e.g., "Not Yet" using regular expression
+
 *	v0.3:
 *		- updated flow coloring to be dimension based. We now calculate the outflow for each dimension. Will ignore the final dimension
 *		- ignores null dimensions - skips over them. Good for data that will be loaded in the future.
@@ -50,6 +54,7 @@ define(
 		'use strict';
 		Theme = JSON.parse(Theme);
 		var SenseColorableSankeyVersion = "0.2";
+		var runningTick = 1;
 
 		$( "<style>" ).html( cssContent ).appendTo( "head" );
 		return {
@@ -59,8 +64,8 @@ define(
 					qDimensions: [],
 					qMeasures: [],
 					qInitialDataFetch: [{
-						qWidth: 7,
-						qHeight: 1400
+						qWidth: 10,
+						qHeight: 10000
 					}]
 				},
 				selectionMode: "QUICK"
@@ -440,15 +445,15 @@ define(
 					measures: {
 						uses: "measures",
 						min: 1,
-						max: 2
+						max: 4
 					},
 								
 					SankeyGroup: {
 						label: "Sankey Settings",
 						component:"expandable-items",
 						items : {
-							Appearance: {
-								label: "Labels",
+							NodeOpts: {
+								label: "Node Options",
 								type: "items",
 								items : {
 									sortSwitch:{
@@ -466,6 +471,26 @@ define(
 		                                    }
 		                                ], 
 		                                defaultValue: false
+									}, 
+									nodeMin:{
+										type: "integer",
+										label: "Minimum Node Size",
+										ref: "nodeMinSize",
+										defaultValue: 1,
+										min : 1,
+										max : 200000
+									},
+									removeNullNodes:{
+										type:"boolean",
+										label:"Remove Empty Nodes",
+										ref:"nodeRemoveEmpty",
+										defaultValue: false
+									},
+									removeTextNodes:{
+										type:"string",
+										expression:"",
+										label:"Remove with text (separate by ;)",
+										ref:"nodeRemoveText"
 									}
 								}
 							}, 
@@ -473,13 +498,29 @@ define(
 								label : "Flow Options",
 								type:"items",
 								items : {
+
+									limitFlow:{
+										ref: "limitFlow",
+										type: "boolean",
+										label: "Limit path combinations?",
+										default: true
+										
+									},
 									flowMax:{
 										type: "integer",
-										label: "Flow max (10 to 2000)",
-										ref: "flowMax (max is 2000)",
-										defaultValue: 500,
-										min : 10,
-										max : 2000
+										label: "# of unique path combos",
+										ref: "flowMax",
+										defaultValue: 1000,
+										min : 1, 
+										show: function(layout)  { if( layout.limitFlow ){ return true } else { return false } }
+									},
+									nodeMin:{
+										type: "integer",
+										label: "Minimum Link Size",
+										ref: "linkMinSize",
+										defaultValue: 1,
+										min : 1,
+										max : 200000
 									},									
 									Separateur:{
 										ref: "displaySeparateur",
@@ -645,7 +686,7 @@ define(
 										min : 10,
 										max : 100,
 										show: function(layout)  { if( layout.useImage ){ return true } else { return false } }
-									},
+									}
 								}
 							},								
 							managemoreDimension:{
@@ -684,15 +725,23 @@ define(
 								}
 							}
 						}
+					},	
+					addons: {  
+					     uses: "addons",  
+					     items: {  
+					          dataHandling: {  
+					               uses: "dataHandling"  
+					          }  
+					     }  
 					},
 					settings: {
-						uses: "settings"				
+						uses: "settings"
 					}	
 				}
 			},
 			snapshot: {
 				canTakeSnapshot: true
-			},			
+			}, 		
 			support : {
 				export: true
 			},
@@ -711,13 +760,13 @@ define(
 				
 				function formatNumber(displayFormat, value, context,currencySymbol){
 					if (displayFormat === "Number"){
-						return formatMoney(value, 0, '.', ' ',currencySymbol, context);
+						return formatMoney(value, 0, '.', ',',currencySymbol, context);
 					}
 					if (displayFormat === "Number1"){
-						return formatMoney(value, 1, '.', ' ',currencySymbol,context);
+						return formatMoney(value, 1, '.', ',',currencySymbol,context);
 					}
 					if (displayFormat === "Number2"){
-						return formatMoney(value, 2, '.', ' ',currencySymbol,context);
+						return formatMoney(value, 2, '.', ',',currencySymbol,context);
 					}
 				}		
 				 
@@ -735,10 +784,28 @@ define(
 				  return hashL >>> 0;
 				}
 				
+				// JV Update v0.4: Nulls and alternative text may remove nodes
+				function isValidNode(str){
+					var excludeWords = [""];
+					if (layout.nodeRemoveText != null){
+						// the user is told to separate by ';'
+						excludeWords = layout.nodeRemoveText.split(";").map(function(word, index){
+							return word.trim();
+						});
+					}
+
+					if (layout.nodeRemoveEmpty != null && layout.nodeRemoveEmpty && str === "-" 
+						||
+						excludeWords.indexOf(str) >= 0
+						){
+						return false;
+					} else {
+						return true;
+					}
+				}
 				
 						
 				var _this 			= this;
-				var maxHeight         = (layout.flowMax === undefined ? 500 : layout.flowMax);
 				  
 				var displayDimensionLabels = layout.displayDimensionLabels;  
 				var displayFormat     = layout.displayFormat;
@@ -770,17 +837,7 @@ define(
 				});
 
 				var divName 	= layout.qInfo.qId;
-				var qMatrix 	= qData.qMatrix.sort();
-
-				// JV Update v0.3: Find dimensions that are completely null
-				var dimIsNull = [];  
-				var qDimNullsRemoved = [];
-				for (var d = 0; d < layout.qHyperCube.qDimensionInfo.length; d++){  
-				     dimIsNull[d] = layout.qHyperCube.qDimensionInfo[d].qCardinal > 0 ? false : true;  
-				     if (!dimIsNull[d]){
-				     	qDimNullsRemoved = qDimNullsRemoved.concat(qDim[d]);
-				     }
-				}  
+				var qMatrix 	= qData.qMatrix.sort();				 
 
 				// JV Update v.1:  create a new object array with user defined color and sort parameters for dimension
 				var qDimColorUser = layout.qHyperCube.qDimensionInfo.map(function(d){
@@ -817,10 +874,14 @@ define(
 				});  
 				
 				// iterate through each row of the hypercube data
-				var source 		= qMatrix.map(function(d) {					  
+				var source = [];
+				var lastrow = 0, me = this;
+				
+				// JV Update v0.4: Use the backendApi to iterate through AVAILABLE rows
+				this.backendApi.eachDataRow(function(rownum, row){
+					lastrow = rownum;
 					var path 		= ""; 
 					var sep 		= ""; 
-					var nbDimension = 0;
 					var nbDimension = qDim.length;
 					var nbMesures 	= qMatrix[0].length - nbDimension;
 					var nbTotal 	= nbMesures + nbDimension;
@@ -830,21 +891,21 @@ define(
 					var flowColors = [];
 					var sortVals = [];
 					var sortDirs = [];
-					var dimensionIndices = []; // keep track of original dimension index in case we drop because of null values
 					
-					for (var i = 0; i < nbDimension ; i++) {
-						if (!dimIsNull[i]){
-						
-							var label = d[i].qText;
-							dimensionIndices = dimensionIndices.concat(i);
+					// only bother if the size of the measure is greater than zero
+					if (row[nbDimension].qNum > 0){ 
+						for (var i = 0; i < nbDimension ; i++) {
+							
+							var label = row[i].qText;
+							
 							labels = labels.concat(label);
-							path += sep + (label.replace('|', ' ')) + '|' + (d[i].qElemNumber); 														
+							path += sep + (label.replace('|', ' ')) + '|' + (row[i].qElemNumber); 														
 							sep = separator;
 												
 							// JV UPDATE v0.1: This now does the work of coloring the nodes
 							// I removed the function "getColorForNode"
 							if (qDimColorUser[i].auto==true || qDimColorUser[i].choice == "random"){
-								//strValue = d[i].qText;
+								//strValue = row[i].qText;
 								if (qDimColorUser[i].displayPalette === "D3-20") {
 									var colours = ['#1f77b4','#aec7e8','#ff7f0e','#ffbb78','#2ca02c','#98df8a','#d62728','#ff9896','#9467bd','#c5b0d5','#8c564b',
 													'#c49c94','#e377c2','#f7b6d2','#7f7f7f','#c7c7c7','#bcbd22','#dbdb8d','#17becf','#9edae5' ];
@@ -872,33 +933,32 @@ define(
 								}							
 							} else if (qDimColorUser[i].choice == "single"){
 								colors = colors.concat(typeof qDimColorUser[i].single === "object" ? qDimColorUser[i].single.color : qDimColorUser[i].single);
-							} else if (qDimColorUser[i].choice == "expression" && typeof d[i].qAttrExps.qValues !== "undefined" && d[i].qAttrExps.qValues.length >= 0 && typeof d[i].qAttrExps.qValues[0].qText !== "undefined") {
-								colors = colors.concat(d[i].qAttrExps.qValues[0].qText);
+							} else if (qDimColorUser[i].choice == "expression" && typeof row[i].qAttrExps.qValues !== "undefined" && row[i].qAttrExps.qValues.length >= 0 && typeof row[i].qAttrExps.qValues[0].qText !== "undefined") {
+								colors = colors.concat(row[i].qAttrExps.qValues[0].qText);
 							} else {
 								colors = colors.concat("#888888"); //may happen if expression fails
 							}				
 
 							// JV UPDATE v0.2: same with sorting 
 							// first we check if we are doing expression-based sorting
-							if (qDimSortUser[i].auto==true || d[i].qAttrExps.qValues.length < 3){
+							if (qDimSortUser[i].auto==true || row[i].qAttrExps.qValues.length < 3){
 								sortVals = sortVals.concat(null); // will use default	
 								sortDirs = sortDirs.concat(true);
 							} else {
-								if (typeof d[i].qAttrExps.qValues[2].qNum !== "undefined"){
-									sortVals = sortVals.concat(d[i].qAttrExps.qValues[2].qNum);
-								} else if (typeof d[i].qAttrExps.qValues[2].qText !== "undefined"){
-									sortVals = sortVals.concat(d[i].qAttrExps.qValues[2].qText);
+								if (typeof row[i].qAttrExps.qValues[2].qNum !== "undefined"){
+									sortVals = sortVals.concat(row[i].qAttrExps.qValues[2].qNum);
+								} else if (typeof row[i].qAttrExps.qValues[2].qText !== "undefined"){
+									sortVals = sortVals.concat(row[i].qAttrExps.qValues[2].qText);
 								} else {
 									sortVals = sortVals.concat(null);
 								}
 								sortDirs = sortDirs.concat(qDimSortUser[i].ascending);
-							}
-						
+							}						
 					
 							// JV Update v0.1: what color should the flow be
 							// JV Update v0.3: there should an outflow color for each dimension except the last					
 							if (qFlowUser[i].auto==true || qFlowUser[i].choice == "random"){
-								//strValue = d[i].qText;
+								//strValue = row[i].qText;
 								if (qFlowUser[i].displayPalette === "D3-20") {
 									var colours = ['#1f77b4','#aec7e8','#ff7f0e','#ffbb78','#2ca02c','#98df8a','#d62728','#ff9896','#9467bd','#c5b0d5','#8c564b',
 													'#c49c94','#e377c2','#f7b6d2','#7f7f7f','#c7c7c7','#bcbd22','#dbdb8d','#17becf','#9edae5' ];
@@ -926,424 +986,505 @@ define(
 								}							
 							} else if (qFlowUser[i].choice == "single"){
 								flowColors = flowColors.concat(typeof qFlowUser.single === "object" ? qFlowUser.single.color : qFlowUser.single);
-							} else if (qFlowUser[i].choice == "expression" && typeof d[i].qAttrExps.qValues !== "undefined" && d[i].qAttrExps.qValues.length >= 1 && typeof d[i].qAttrExps.qValues[1].qText !== "undefined") {
-								flowColors = flowColors.concat(d[i].qAttrExps.qValues[1].qText);
+							} else if (qFlowUser[i].choice == "expression" && typeof row[i].qAttrExps.qValues !== "undefined" && row[i].qAttrExps.qValues.length >= 1 && typeof row[i].qAttrExps.qValues[1].qText !== "undefined") {
+								flowColors = flowColors.concat(row[i].qAttrExps.qValues[1].qText);
 							} else {
 								flowColors = flowColors.concat("#888888"); //may happen if expression fails
 							}	
 						}
-					}
 
-					// JV Update: add on the image stuff only if needed
-					// btw, gauche is left in French, droite is right	
-					var sourceOut = {
-						"Labels": labels,
-						"Colors": colors,
-						"FlowColors": flowColors,
-						"Path": path,
-						"Frequency": d[nbDimension].qNum,
-						"SortVals": sortVals,
-						"SortDirs": sortDirs				
-					}	
-					// add the image stuff, if we using images on both sides, 2nd to last measure is left, last is right
-					// if only using either left or right, use last measure
-					if (useImage && useMeasure){
-						if (imageLeft && imageRight){
-							sourceOut['Photogauche'] = d[nbTotal-2].qText;
-							sourceOut['Photodroite'] = d[nbTotal-1].qText;
-						} else if (imageLeft && !imageRight){
-							sourceOut['Photogauche'] = d[nbTotal-1].qText;
-						} else if (!imageLeft && imageRight){
-							sourceOut['Photodroite'] = d[nbTotal-1].qText;
+						// JV Update: add on the image stuff only if needed
+						// btw, gauche is left in French, droite is right	
+						var sourceOut = {
+							"Labels": labels,
+							"Colors": colors,
+							"FlowColors": flowColors,
+							"Path": path,
+							"Frequency": row[nbDimension].qNum,
+							"SortVals": sortVals,
+							"SortDirs": sortDirs				
+						};
+						// add the image stuff, if we using images on both sides, 2nd to last measure is left, last is right
+						// if only using either left or right, use last measure
+						if (useImage && useMeasure){
+							if (imageLeft && imageRight){
+								sourceOut['Photogauche'] = row[nbTotal-2].qText;
+								sourceOut['Photodroite'] = row[nbTotal-1].qText;
+							} else if (imageLeft && !imageRight){
+								sourceOut['Photogauche'] = row[nbTotal-1].qText;
+							} else if (!imageLeft && imageRight){
+								sourceOut['Photodroite'] = row[nbTotal-1].qText;
+							}
 						}
+
+						// JV Update v0.4: just collect valid source (i.e., source with frequence > 0)
+
+						source.push(sourceOut);	
 					}
-					return sourceOut;
+					
 				});
 				
+				// JV Update v0.4: If the total number of rows in the hypercube is more than the amount we have gathered, request more (and repaint)
+				if(this.backendApi.getRowCount() > lastrow +1){
+			        //we havent got all the rows yet, so get some more, 1400 rows
+			        //$("sk_"+ layout.qInfo.qId).empty();
+			        var requestPage = [{
+			            qTop: lastrow + 1,
+			            qLeft: 0,
+			            qWidth: 10, //should be # of columns
+			            qHeight: Math.min( 1400, this.backendApi.getRowCount() - lastrow )
+			        }];
+			        this.backendApi.getData( requestPage ).then( function ( dataPages ) {
+			            //when we get the result trigger paint again
+			            me.paint( $element, layout );
+			        });
 
-				var id = "sk_"+ layout.qInfo.qId;
-						  
-				if (document.getElementById(id)) {
-					$("#" + id).empty();
-				} else {
-					$element.append($('<div />').attr("id", id));        
-				}
-				$("#" + id).width($element.width()).height($element.height());
-				
-				var sLinks = [];
-				var endArr = [];
-				var catArray = [];
-				
-				//********Creates Duplicate IDs*************
-				//		$element.attr("id",id)
-				//******************************************
-				//var td = _this.Data;
-				var sNodes = []; // just the path
-				var jNodes = []; // more details
-				var rev = 0; //permet de pivoter les dimensions
-				  
-				 
-				source=source.slice(0,maxHeight);
-				
-				// go from rows to distinct nodes on the graph
-				source.forEach(function(d) {
-					//var row = d;
-					var path = d.Path;
-					var val = parseFloat(d.Frequency);
-					if(val > 0) {
+			        var id = "sk_"+ layout.qInfo.qId;
+			        if (document.getElementById(id)) {
+			        	var updateText = '<h3>Updating ' + '.'.repeat(runningTick++) + '</h3>';
+			        	if (runningTick > 10) runningTick = 1;
+						$("#" + id).empty().append($(updateText));
+					} 
+			    } else { 
+			    	// JV Update v0.4: we won't display until we have all the data
+			    	
+
+					var id = "sk_"+ layout.qInfo.qId;
+							  
+					if (document.getElementById(id)) {
+						$("#" + id).empty();
+					} else {
+						$element.append($('<div />').attr("id", id));        
+					}
+					$("#" + id).width($element.width()).height($element.height());
+					
+					var linkDetails = [];
+					var endArr = [];
+					var catArray = [];
+					
+					//********Creates Duplicate IDs*************
+					//		$element.attr("id",id)
+					//******************************************
+					//var td = _this.Data;
+					var nodeNames = []; // just the path
+					var nodeDetails = []; // more details
+					var rev = false; //permet de pivoter les dimensions
+					  
+
+					// maximum number of possible paths through the diagram
+					if (layout.limitFlow){
+						source = source.slice(0, Math.min(layout.flowMax == null ? 1000 : layout.flowMax, source.length));
+					}
+
+					// go from rows to distinct nodes on the graph
+					var tempNodeNames = [];
+					var tempNodeDetails = [];
+					source.forEach(function(row, index) {
+						var path = row.Path;
+						var val = parseFloat(row.Frequency);
 						var tArr = path.split(separator);  
-						var labels = d.Labels;
-						var colors = d.Colors;
-						var sortVals = d.SortVals;
-						var sortDirs = d.SortDirs;
+						var labels = row.Labels;
+						var colors = row.Colors;
+						var sortVals = row.SortVals;
+						var sortDirs = row.SortDirs;
+						
 						//tArr.sort();
-						if (rev == "1") {
+						if (rev) {
 							tArr.reverse();
 							colors.reverse();
 						} 	 	
 						if (tArr.length > 1) {
-							$.each(tArr, function(i) {							
-								if(tArr.length === (i + 1)){
-									tArr[i] = this.toString().trim() + "~end";
-								} else {
-									tArr[i] = this.toString().trim() + "~" + i;	
-								}
-							});
-							$.each(tArr, function(i) {
-								if ($.inArray(this.toString().trim(), sNodes) === -1
-									&& labels[i] !== "-" // JV Update 0.3: Eliminate nodes representing null	
-								) {
-									sNodes.push(this.toString().trim());
-									jNodes.push({
-										name: this.toString().trim(),
-										color: colors[i],
-										sortVal: sortVals[i],
-									 	sortDir: sortDirs[i],
-									 	dimIndex: i
-									});
+							$.each(tArr, function(i) {		
+								var nodeLabel = this.split("|")[0].toString().trim();
+
+								if (isValidNode(nodeLabel)){
+									
+									// JV Update 0.4: this is a temporary index, if dimensions are skipped it wiill be updated
+									var nodeName = this.toString().trim() + "~" + i;	
+								
+									// add to nodes if not already present
+									var nodeIndex = tempNodeNames.indexOf(nodeName);
+									if (nodeIndex === -1){
+										tempNodeNames.push(nodeName);
+										tempNodeDetails.push({
+											name: nodeName,
+											label: nodeLabel,
+											color: colors[i],
+											sortVal: sortVals[i],
+										 	sortDir: sortDirs[i],
+										 	dimIndex: i,
+										 	value: val
+										});
+									} else {
+										// update the size of this node
+										tempNodeDetails[nodeIndex].value += val;
+									}									
 								}
 							});
 						}
-					}
-				});
+					});
 
-				// go from rows to links
-				source.forEach(function(d) {
-					//var row = d;
-					var path = d.Path
-					var val = parseFloat(d.Frequency);
-					var flowColors = d.FlowColors;
-				  
-					if (useMeasure == true) {
-					   var photog = d.Photogauche;
-					   var photod = d.Photodroite;
-				  	}
-				 
-				  	if(val > 0) {
+					// JV Update 0.4: Do nodes exceed minimum size? if so, make sure this dimension index is included (for titling)
+					var dimIndexRefs = [];
+					tempNodeDetails.forEach(function(detail){
+						if (detail.value >= (layout.nodeMinSize != null ? layout.nodeMinSize : 1)){
+							if (dimIndexRefs.length === 0 || dimIndexRefs.indexOf(detail.dimIndex) === -1){
+								dimIndexRefs.push(detail.dimIndex);
+							}
+						}
+					});
+					dimIndexRefs.sort();
+
+					// JV Update 0.4: If Node is sufficently large rename index according to the "real dimensional index"  dimIndexFers
+					tempNodeDetails.forEach(function(detail){
+						if (detail.value >= (layout.nodeMinSize != null ? layout.nodeMinSize : 1)){
+							// update the dimIndex to reflect valid dimension positions
+							detail.dimIndex = dimIndexRefs.indexOf(detail.dimIndex);
+							detail.name = detail.name.split("~")[0] + "~" + detail.dimIndex;
+							
+							nodeDetails.push(detail);
+							nodeNames.push(detail.name);
+						}
+					});
+
+					// go from rows to links
+					var tempLinkDetails = [];
+					source.forEach(function(row) {
+						var path = row.Path
+						var val = parseFloat(row.Frequency); // all frequencies should be greater than 0 from above code
+						var flowColors = row.FlowColors;
+					  
+						if (useMeasure == true) {
+						   var photog = row.Photogauche;
+						   var photod = row.Photodroite;
+					  	}					 
+					  	
 				  		var tArr = path.split(separator);  
 			  
-				  		if (rev == "1") {
+				  		if (rev) {
 							tArr.reverse();
 						} 	 	
 				  		if (tArr.length > 1) {
-							$.each(tArr, function(i) {
-							
-								if(tArr.length === (i + 1)){
-									tArr[i] = this.toString().trim() + "~end";
-								} else {
-									tArr[i] = this.toString().trim() + "~" + i;	
-								}
-							});
-					
-							$.each(tArr, function(i) {
-								var tFlag = "no";
-								if ((i + 1) != tArr.length) {
-									////console.info(this.toString().trim() + " to " + tArr[i + 1]);
-									var cS = $.inArray(this.toString().trim(), sNodes);
-									var cT = $.inArray(tArr[i + 1].toString().trim(), sNodes);
+				  			var prevDimIndex = -1;
+				  			$.each(tArr, function(i) {
+				  				var nodeLabel = this.split("|")[0].toString().trim();
 
-									// JV Update 0.3: Do not include links that go to null nodes	
-									if (cS > -1 && cT > -1){
-										//////console.info(cT + " " + cS);
-										$.each(sLinks, function(i, v) {
-											
-											if (v.source === cS && v.target === cT) { 
-												// link already exists update size
-												tFlag = "yes";
-												v.value = v.value + val;
+								if (isValidNode(nodeLabel)){
+									var dimIndex = dimIndexRefs.indexOf(i);
+									
+									// JV Update v0.4: we make links out of previous dimension and current
+									if(dimIndex > 0 && prevDimIndex >= 0){
+										//var prevDimIndex = dimIndex - 1;
+										var nodeName = this + "~" + dimIndex;	
+										var nodeLabelPrev = tArr[dimIndexRefs[prevDimIndex]].split("|")[0].toString().trim();
+										var nodeNamePrevious =  tArr[dimIndexRefs[prevDimIndex]].toString().trim() + "~" + prevDimIndex;	
+										//var nodeName = tArr[i].toString().trim() + "~" + (isLastDim[i] ? "end" : runningIndex);
+										
+										var tFlag = false;
+										var cS = $.inArray(nodeNamePrevious, nodeNames);
+										var cT = $.inArray(nodeName, nodeNames);
+
+										// JV Update 0.3: Do not include links that go to null nodes	
+										if (cS > -1 && cT > -1){
+											$.each(tempLinkDetails, function(i, v) {											
+												if (v.source === cS && v.target === cT) { 
+													// link already exists update size
+													tFlag = true;
+													v.value = v.value + val;
+												}
+											});
+											// add new links
+											if (!tFlag){
+												var linkObj = {
+													"source" : cS,
+													"target" : cT,
+													"value" : val,
+													"FlowColor": flowColors[dimIndexRefs[prevDimIndex]]
+												};
+												if (useMeasure){
+													linkObj["Photogauche"] = photog;
+													linkObj["Photodroite"] = photod;
+												}
+												tempLinkDetails.push(linkObj);
 											}
-										});
-										if ((tFlag == "no") &&  (useMeasure == true)) {
-											sLinks.push({
-												"source" : cS,
-												"target" : cT,
-												"value" : val,
-												"Photogauche" : photog,
-												"Photodroite" : photod,
-												"FlowColor": flowColors[i]
-											});
-										}
-										if ((tFlag == "no") &&  (useMeasure == false)) {
-											sLinks.push({
-												"source" : cS,
-												"target" : cT,
-												"value" : val,
-												"FlowColor": flowColors[i]
-											});
 										}
 									}
+									prevDimIndex = dimIndex;
 								}
-							});
+							});							
+						}
+					});
+					
+					tempLinkDetails.forEach(function(detail){
+						if (detail.value >= (layout.linkMinSize != null ? layout.linkMinSize : 1)){
+							linkDetails.push(detail);
+						}
+					});
+
+				  // Ajuste le graph si image droite ou gauche
+				  if(useImage == true) {
+					if(imageRight == true && imageLeft == true) {
+						var marginRight 		= sizeImage;
+						var marginLeft 			= sizeImage;
+						var widthGraph 			= $element.width() - 115;
+						var senseSankeyWidth 	= 40;
+					}
+					if(imageRight == false && imageLeft == true) {
+						var marginRight 		= 1;
+						var marginLeft 			= sizeImage;
+						var widthGraph 			= $element.width() - 35;
+						var senseSankeyWidth 	= 40;
+					}
+					if(imageRight == true && imageLeft == false) {
+						var marginRight 		= sizeImage;
+						var marginLeft 			= 1;
+						var widthGraph 			= $element.width() - 35;
+						var senseSankeyWidth 	= 40;
+					}
+					if(imageRight == false && imageLeft == false) {
+						var marginRight 		= 1;
+						var marginLeft 			= 1;
+						var widthGraph 			= $element.width();
+						var senseSankeyWidth 	= 10;
+					}
+				  } else {
+						var marginRight 		= 1;
+						var marginLeft 			= 1;
+						var widthGraph 			= $element.width();
+						var senseSankeyWidth 	= 10;
+				  }
+
+				  var margin = {
+					  top : 5,
+					  right : marginRight,
+					  bottom : 0,
+					  left : marginLeft
+					}, 
+					width = widthGraph, 
+					height = $element.height();
+
+					var svgWidth = width + margin.left + margin.right;	
+					var svgHeight = height + margin.top + margin.bottom;
+					
+					var svg = d3.select("#sk_" + divName).append("svg").attr("id", "svg-sankey")
+					.attr("width", svgWidth).attr("height", svgHeight)
+					.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+				  	
+				  	var sankey = senseSankey().nodeWidth(15).nodePadding(10).size([width - senseSankeyWidth , height - 10]);
+					var path = sankey.link();
+					sankey.nodes(nodeDetails).links(linkDetails).layout(32);
+				
+						
+					// JV Update v0.4: Put titles above the top nodes in its own element
+					//var runningIndex = -1;
+					if (displayDimensionLabels){
+						var titleHTML = "<div id='dimLabels' style='display:flex; flex-direction:column; min-height:20px'>"
+						for (var d = 0; d < dimIndexRefs.length; d++){
+							var di = dimIndexRefs[d];
+							//if (!dimIsNull[d]){
+								//runningIndex++;
+								var dimTitle = qDim[di];
+								// find min x of this dimension
+								var xvalue = 1000000;
+								for (var ni = 0; ni < nodeDetails.length; ni++){
+									if (nodeDetails[ni].dimIndex === d){
+										xvalue = Math.min(nodeDetails[ni].x, xvalue);
+										//break;
+									}
+								}
+								if (d === dimIndexRefs.length - 1){
+									xvalue = xvalue - dimTitle.length*4;
+								}
+								titleHTML += "<span style='position:absolute; left:" + xvalue + "px;'>" + dimTitle + "</span>";
+							//}
+						}
+						titleHTML += "</div>";
+						// add this title before the svg (but only if there is enough room)
+						if (xvalue > 200){
+							$("#" + id).prepend(titleHTML);
+							// resize the sankey to fit the new labels
+							var titleHeight = $("#dimLabels").height();
+							var newHeightScale = (svgHeight - titleHeight) / svgHeight;
+							svg.attr("transform", "scale(1, " + newHeightScale + "), translate(" + margin.left + "," + margin.top +")");											
 						}
 					}
-				});
-				
 					
-			  // Ajuste le graph si image droite ou gauche
-			  if(useImage == true) {
-				if(imageRight == true && imageLeft == true) {
-					var marginRight 		= sizeImage;
-					var marginLeft 			= sizeImage;
-					var widthGraph 			= $element.width() - 115;
-					var senseSankeyWidth 	= 40;
-				}
-				if(imageRight == false && imageLeft == true) {
-					var marginRight 		= 1;
-					var marginLeft 			= sizeImage;
-					var widthGraph 			= $element.width() - 35;
-					var senseSankeyWidth 	= 40;
-				}
-				if(imageRight == true && imageLeft == false) {
-					var marginRight 		= sizeImage;
-					var marginLeft 			= 1;
-					var widthGraph 			= $element.width() - 35;
-					var senseSankeyWidth 	= 40;
-				}
-				if(imageRight == false && imageLeft == false) {
-					var marginRight 		= 1;
-					var marginLeft 			= 1;
-					var widthGraph 			= $element.width();
-					var senseSankeyWidth 	= 10;
-				}
-			  } else {
-					var marginRight 		= 1;
-					var marginLeft 			= 1;
-					var widthGraph 			= $element.width();
-					var senseSankeyWidth 	= 10;
-			  }
+					var link = svg.append("g").selectAll(".link").data(linkDetails).enter().append("path").attr("class", "link").attr("d", path)
+								.style("stroke-width",function(d) {
+									return Math.max(1, d.dy);
+								})
+								.style("stroke", function(d){
+									return d.FlowColor;
+								})
+								.sort(function(a, b) {
+									return b.dy - a.dy;
+								});
+					
+					
+					$('.ttip').remove(); //We make sure there isn't any other tooltip div in the dom
 
-			  var margin = {
-				  top : displayDimensionLabels ? 22 : 5,
-				  right : marginRight,
-				  bottom : 0,
-				  left : marginLeft
-				}, 
-				width = widthGraph, 
-				height = $element.height();
-				
-				var svg = d3.select("#sk_" + divName).append("svg").attr("width", width + margin.left + margin.right).attr("height", height + margin.top + margin.bottom).append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-			  
-				var sankey = senseSankey().nodeWidth(15).nodePadding(10).size([width - senseSankeyWidth , height - 10]);
-				var path = sankey.link();
-
-				sankey.nodes(jNodes).links(sLinks).layout(32);
-				
-				
-				var link = svg.append("g").selectAll(".link").data(sLinks).enter().append("path").attr("class", "link").attr("d", path)
-							.style("stroke-width",function(d) {
-								return Math.max(1, d.dy);
-							})
-							.style("stroke", function(d){
-								return d.FlowColor;
-							})
-							.sort(function(a, b) {
-								return b.dy - a.dy;
-							});
-				
-				
-				$('.ttip').remove(); //We make sure there isn't any other tooltip div in the dom
-
-				// Create tooltip div 
-				var  tooltip = d3.select("body")
-						.append("div")
-						.attr("class","ttip")
-						.attr("id","ttip")
-						.style("position", "absolute")
-						.style("z-index", "10")
-						.style("visibility", "hidden");	
-				
-				//Link tooltip
-				link.on("mouseover", function(d){
-						var start = d.source.name.split('|')[0];
-						var end = d.target.name.split('|')[0];
-						var targetValue = formatNumber(displayFormat,d.value,'',currencySymbol);
+					// Create tooltip div 
+					var  tooltip = d3.select("body")
+							.append("div")
+							.attr("class","ttip")
+							.attr("id","ttip")
+							.style("position", "absolute")
+							.style("z-index", "10")
+							.style("visibility", "hidden");	
+					
+					//Link tooltip
+					link.on("mouseover", function(d){
+							var start = d.source.name.split('|')[0];
+							var end = d.target.name.split('|')[0];
+							var targetValue = formatNumber(displayFormat,d.value,'',currencySymbol);
+							
+							tooltip.html("<b>"+start+"</b>"+displaySeparateur+"<b>"+end+"</b><br/>"+targetValue);			
+							return tooltip.style("visibility", "visible");})
+						.on("mousemove", function(d){
+							var start = d.source.name.split('|')[0];
+							var end = d.target.name.split('|')[0];
+							var targetValue = formatNumber(displayFormat,d.value,'',currencySymbol);
+							tooltip.html("<b>"+start+"</b>"+displaySeparateur+"<b>"+end+"</b><br/>"+targetValue);
+							return tooltip.style("top",(d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px");
+						})
+						.on("mouseout", function(){
+							return tooltip.style("visibility", "hidden");
+						});
+					
+					var node = svg
+					.append("g").selectAll(".node").data(nodeDetails).enter().append("g").attr("class", "node").attr("transform", function(d) {
+					  return "translate(" + (d.x) + "," + d.y + ")";
+					})
+					
+					node.on("click",function(d, i) {
+						//on passe a la fonction l'identifiant qElement precedemment stocké dans le nom et le nom de la dimension sous forme d'un tableau
 						
-						tooltip.html("<b>"+start+"</b>"+displaySeparateur+"<b>"+end+"</b><br/>"+targetValue);			
-						return tooltip.style("visibility", "visible");})
+						_this.backendApi.selectValues(
+							parseInt(d.name.split('~')[1].replace('end', qDim.length - 1)),
+							[ parseInt(d.name.split('~')[0].split('|')[1]) ],
+							true
+						);
+					})
+					
+					link.on("click",function(d,i){
+						_this.backendApi.selectValues(
+							parseInt(d.target.name.split('~')[1].replace('end', qDim.length - 1)), //DAP: As we already selected a link, it make sense to select the source and target dimensions and filter the data
+							[ parseInt(d.target.name.split('~')[0].split('|')[1]) ],
+							true
+						);
+						_this.backendApi.selectValues(
+							parseInt(d.source.name.split('~')[1].replace('end', qDim.length - 1)),
+							[ parseInt(d.source.name.split('~')[0].split('|')[1]) ],
+							true
+						);	
+						$('.ttip').remove(); //remove tooltip object on click.
+					});		
+								
+					//dessin du noeud
+					node.append("text").attr("class", "nodeTitle").attr("x", -6).attr("y", function(d) {
+						  return d.dy / 2;
+					}).attr("dy", ".35em").attr("text-anchor", "end").attr("transform", null).text(function(d) {
+					  var str = d.name.substring(0, d.name.indexOf("~")).split('|')[0];
+					  return str 
+					}).filter(function(d) {
+					  return d.x < width / 2;
+					}).attr("x", 6 + sankey.nodeWidth()).attr("text-anchor", "start");
+					
+					// AVEC POPUP sur le carré de couleur
+					node.append("rect").attr("height", function(d) {
+					  return d.dy;
+					}).attr("width", sankey.nodeWidth()).style("fill", function(d) {
+					   return d.color; // JV Update, color is now stored with the node				 
+					}).style("stroke", function(d) {
+					  return d3.rgb(d.color).darker(2);
+					});
+					
+										
+					// Dessine les images
+					if (useImage == true && (imageLeft == true || imageRight == true)) {
+					//	if ((imageLeft == true && position == 0) || (imageRight == true && position == qDim.length -1 ) ){
+															
+						node.append("image")
+							.attr("xlink:href", function(d) {
+								var nameImage = "";
+								var position = parseInt(d.name.split('~')[1].replace('end', qDim.length - 1));
+								
+								if (position == 0 || position == qDim.length - 1) { //seulement pour le premier et dernier
+		 					 						 
+									//if (useMeasure === true && imageLeft == true ) {
+									if (useMeasure === true) {
+										if (position == 0 && imageLeft == true) { //pour le premier c'est toujours photogauche
+											nameImage=d.sourceLinks[0].Photogauche;
+										}
+										if (position != 0 && imageRight == true) { //pour le dernier c'est toujours photodroite
+											nameImage=d.targetLinks[0].Photodroite;
+										}
+										
+									}
+									else { //on utilise les dimensions
+										if ((imageLeft == true && position == 0) || (imageRight == true && position == qDim.length -1 ) ){
+											nameImage=d.name.substring(0, d.name.indexOf("~")).split('|')[0];
+											nameImage = nameImage + "." + extensionImage;
+										}
+									}
+								
+								// extension dynamique
+								return urlImage + nameImage;
+							}
+							})
+							.attr("style", "background-color: transparent; opacity: 1;")
+							.attr("height", sizeImage + "px")
+							.attr("width",  sizeImage + "px")
+							.attr("x", sizeImage / 4)
+							.attr("y", function(d) {
+								return d.dy / 2 - (sizeImage / 2);
+							})
+							.attr("text-anchor", "end")
+							.filter(function(d) {
+								return d.x < sizeImage + 15;
+							})
+							.attr("x", sankey.nodeWidth() - (sizeImage + 17))
+							.attr("text-anchor", "start");
+						//}
+					}
+
+					//Node tooltip
+					node.on("mouseover", function(d){
+						var level = d.name.substr(d.name.indexOf("~")+1,1);
+						var edgeMargin= 0; //Last nodes might not have enough space for the tooltip, so we add a negative margin to push the tooltip on the left
+						// test si on est à la fin du flux ou pas
+						if (level === "e" ){
+							level = qDim.length -1;
+							edgeMargin=-80;
+						}
+						var entete = qDim[level] + ' : ' + d.name.split('|')[0];
+						var value=formatNumber(displayFormat,d.value,'',currencySymbol);
+							
+						tooltip.html("<b>"+entete+"</b><br/>"+value);			
+						return tooltip.style("visibility", "visible").style("top",(d3.event.pageY+10)+"px").style("left",(d3.event.pageX+10+edgeMargin)+"px");
+					})
 					.on("mousemove", function(d){
-						var start = d.source.name.split('|')[0];
-						var end = d.target.name.split('|')[0];
-						var targetValue = formatNumber(displayFormat,d.value,'',currencySymbol);
-						tooltip.html("<b>"+start+"</b>"+displaySeparateur+"<b>"+end+"</b><br/>"+targetValue);
-						return tooltip.style("top",(d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px");
+						var edgeMargin= 0;
+						var level = d.name.substr(d.name.indexOf("~")+1,1);
+						// test si on est à la fin du flux ou pas
+						if (level === "e" ){
+							level = qDim.length -1;
+							edgeMargin=-80;
+						}
+						
+						var entete = qDim[level] + ' : ' + d.name.split('|')[0];		
+						var value=formatNumber(displayFormat,d.value,'',currencySymbol);
+							
+				
+						tooltip.html("<b>"+entete+"</b><br/>"+value);
+						return tooltip.style("top",(d3.event.pageY+10)+"px").style("left",(d3.event.pageX+10+edgeMargin)+"px");
 					})
 					.on("mouseout", function(){
 						return tooltip.style("visibility", "hidden");
 					});
-				
-				var node = svg
-				.append("g").selectAll(".node").data(jNodes).enter().append("g").attr("class", "node").attr("transform", function(d) {
-				  return "translate(" + (d.x) + "," + d.y + ")";
-				})
-				
-				node.on("click",function(d, i) {
-					//on passe a la fonction l'identifiant qElement precedemment stocké dans le nom et le nom de la dimension sous forme d'un tableau
 					
-					_this.backendApi.selectValues(
-						parseInt(d.name.split('~')[1].replace('end', qDim.length - 1)),
-						[ parseInt(d.name.split('~')[0].split('|')[1]) ],
-						true
-					);
-				})
-				
-				link.on("click",function(d,i){
-					_this.backendApi.selectValues(
-						parseInt(d.target.name.split('~')[1].replace('end', qDim.length - 1)), //DAP: As we already selected a link, it make sense to select the source and target dimensions and filter the data
-						[ parseInt(d.target.name.split('~')[0].split('|')[1]) ],
-						true
-					);
-					_this.backendApi.selectValues(
-						parseInt(d.source.name.split('~')[1].replace('end', qDim.length - 1)),
-						[ parseInt(d.source.name.split('~')[0].split('|')[1]) ],
-						true
-					);	
-					$('.ttip').remove(); //remove tooltip object on click.
-				});		
-							
-				//dessin du noeud
-				node.append("text").attr("class", "nodeTitle").attr("x", -6).attr("y", function(d) {
-					  return d.dy / 2;
-				}).attr("dy", ".35em").attr("text-anchor", "end").attr("transform", null).text(function(d) {
-				  var str = d.name.substring(0, d.name.indexOf("~")).split('|')[0];
-				  return str 
-				}).filter(function(d) {
-				  return d.x < width / 2;
-				}).attr("x", 6 + sankey.nodeWidth()).attr("text-anchor", "start");
-				
-				// AVEC POPUP sur le carré de couleur
-				node.append("rect").attr("height", function(d) {
-				  return d.dy;
-				}).attr("width", sankey.nodeWidth()).style("fill", function(d) {
-				   return d.color; // JV Update, color is now stored with the node				 
-				}).style("stroke", function(d) {
-				  return d3.rgb(d.color).darker(2);
-				});
-
-				// JV Update v0.3: Put titles above the top nodes
-				if (displayDimensionLabels){
-					node.append("text").attr("class", "dimTitle")
-					.attr("x", function(d){
-						if (d.dimIndex == 0){
-							return 0;
-						} else if (d.dimIndex == qDim.length-1){
-							return d.dx - (qDimNullsRemoved[d.dimIndex].length-1) * 20;
-						} else {
-							return d.dx/2 - (qDimNullsRemoved[d.dimIndex].length-1) * 10;
-						}
-					})
-					.attr("y", -5)
-					.filter(function(d){
-						return d.y < 1; // only add titles for the top nodes
-					})
-					.text(function(d){
-						return qDimNullsRemoved[d.dimIndex];
-					});
+					return qlik.Promise.resolve();
 				}
-				
-				// Dessine les images
-				if (useImage == true && (imageLeft == true || imageRight == true)) {
-				//	if ((imageLeft == true && position == 0) || (imageRight == true && position == qDim.length -1 ) ){
-														
-					node.append("image")
-						.attr("xlink:href", function(d) {
-							var nameImage = "";
-							var position = parseInt(d.name.split('~')[1].replace('end', qDim.length - 1));
-							
-							if (position == 0 || position == qDim.length - 1) { //seulement pour le premier et dernier
-	 					 						 
-								//if (useMeasure === true && imageLeft == true ) {
-								if (useMeasure === true) {
-									if (position == 0 && imageLeft == true) { //pour le premier c'est toujours photogauche
-										nameImage=d.sourceLinks[0].Photogauche;
-									}
-									if (position != 0 && imageRight == true) { //pour le dernier c'est toujours photodroite
-										nameImage=d.targetLinks[0].Photodroite;
-									}
-									
-								}
-								else { //on utilise les dimensions
-									if ((imageLeft == true && position == 0) || (imageRight == true && position == qDim.length -1 ) ){
-										nameImage=d.name.substring(0, d.name.indexOf("~")).split('|')[0];
-										nameImage = nameImage + "." + extensionImage;
-									}
-								}
-							
-							// extension dynamique
-							return urlImage + nameImage;
-						}
-						})
-						.attr("style", "background-color: transparent; opacity: 1;")
-						.attr("height", sizeImage + "px")
-						.attr("width",  sizeImage + "px")
-						.attr("x", sizeImage / 4)
-						.attr("y", function(d) {
-							return d.dy / 2 - (sizeImage / 2);
-						})
-						.attr("text-anchor", "end")
-						.filter(function(d) {
-							return d.x < sizeImage + 15;
-						})
-						.attr("x", sankey.nodeWidth() - (sizeImage + 17))
-						.attr("text-anchor", "start");
-					//}
-				}
-
-				//Node tooltip
-				node.on("mouseover", function(d){
-					var level = d.name.substr(d.name.indexOf("~")+1,1);
-					var edgeMargin= 0; //Last nodes might not have enough space for the tooltip, so we add a negative margin to push the tooltip on the left
-					// test si on est à la fin du flux ou pas
-					if (level === "e" ){
-						level = qDim.length -1;
-						edgeMargin=-80;
-					}
-					var entete = qDim[level] + ' : ' + d.name.split('|')[0];
-					var value=formatNumber(displayFormat,d.value,'',currencySymbol);
-						
-					tooltip.html("<b>"+entete+"</b><br/>"+value);			
-					return tooltip.style("visibility", "visible").style("top",(d3.event.pageY+10)+"px").style("left",(d3.event.pageX+10+edgeMargin)+"px");
-				})
-				.on("mousemove", function(d){
-					var edgeMargin= 0;
-					var level = d.name.substr(d.name.indexOf("~")+1,1);
-					// test si on est à la fin du flux ou pas
-					if (level === "e" ){
-						level = qDim.length -1;
-						edgeMargin=-80;
-					}
-					
-					var entete = qDim[level] + ' : ' + d.name.split('|')[0];		
-					var value=formatNumber(displayFormat,d.value,'',currencySymbol);
-						
-			
-					tooltip.html("<b>"+entete+"</b><br/>"+value);
-					return tooltip.style("top",(d3.event.pageY+10)+"px").style("left",(d3.event.pageX+10+edgeMargin)+"px");
-				})
-				.on("mouseout", function(){
-					return tooltip.style("visibility", "hidden");
-				});
-				
-				return qlik.Promise.resolve();
 			}        
 		};
 } );

@@ -106,11 +106,23 @@ senseSankey = function() {
     });
   }
  
-  // Iteratively assign the breadth (x-position) for each node.
-  // Nodes are assigned the maximum breadth of incoming neighbors plus one;
-  // nodes with no incoming links are assigned breadth zero, while
-  // nodes with no outgoing links are assigned the maximum breadth.
+  // JV Update 0.4: In original (I'm keeping the code until I'm confident about this), was finding x position by traversing tree and
+  // placing target links as +1 from source. In the updated version I am using the dimIndex, which I've already calculated
+  // so should both bake sense and give a slight (negligible) performance boost  
   function computeNodeBreadths() {
+    var x = 0;
+    nodes.forEach(function(node){
+      node.x = node.dimIndex;
+      node.dx = nodeWidth;
+
+      x = Math.max(x, node.x);
+    });
+    x++;
+    // Iteratively assign the breadth (x-position) for each node.
+    // Nodes are assigned the maximum breadth of incoming neighbors plus one;
+    // nodes with no incoming links are assigned breadth zero, while
+    // nodes with no outgoing links are assigned the maximum breadth.
+    /*
     var remainingNodes = nodes,
         nextNodes,
         x = 0;
@@ -127,8 +139,8 @@ senseSankey = function() {
       remainingNodes = nextNodes;
       ++x;
     }
- 
-    //
+    */
+    
     moveSinksRight(x);
     scaleNodeBreadths((size[0] - nodeWidth) / (x - 1));
   }
@@ -281,6 +293,7 @@ senseSankey = function() {
  
   function computeLinkDepths() {
     nodes.forEach(function(node) {
+      // JV: I am not sure why these are backwards, but this is how it came
       node.sourceLinks.sort(ascendingTargetDepth);
       node.targetLinks.sort(ascendingSourceDepth);
     });
