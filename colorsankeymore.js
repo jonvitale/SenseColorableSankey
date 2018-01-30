@@ -108,7 +108,8 @@ senseSankey = function() {
  
   // JV Update 0.4: In original (I'm keeping the code until I'm confident about this), was finding x position by traversing tree and
   // placing target links as +1 from source. In the updated version I am using the dimIndex, which I've already calculated
-  // so should both bake sense and give a slight (negligible) performance boost  
+  // so should both make sense and give a slight (negligible) performance boost  
+  // JV Update 0.4.1: commented out moveSinksRight. We want to keep our nodes in their intended dimensional column
   function computeNodeBreadths() {
     var x = 0;
     nodes.forEach(function(node){
@@ -141,7 +142,7 @@ senseSankey = function() {
     }
     */
     
-    moveSinksRight(x);
+    //moveSinksRight(x);
     scaleNodeBreadths((size[0] - nodeWidth) / (x - 1));
   }
  

@@ -2,10 +2,14 @@
 *	Jonathan Vitale
 *   Major code changes from Xavier Le Pitre's version 2.31
 *
+*	v0.4.1: terminal nodes no longer pushed to edge of display
 *	v0.4:
 *		- if data is very large will incrementally grow data (using backend api to grow hypercube in callback paint functions).
-*		- TODO: Hide nodes with a given text, e.g., "Not Yet" using regular expression
-
+*		- Make show null nodes default setting so users can see all of data, selection box is in Node Options
+*		- Also in Node Options, allow users to hide nodes with a given text, e.g., "Not Yet", separate multiple by ";"
+*		- Finally, in Node Options, allow users to select minimum size of a null
+*		- Similarly, in Link Options, allow users to hide links with < minimum size
+*
 *	v0.3:
 *		- updated flow coloring to be dimension based. We now calculate the outflow for each dimension. Will ignore the final dimension
 *		- ignores null dimensions - skips over them. Good for data that will be loaded in the future.
@@ -53,7 +57,7 @@ define(
 		
 		'use strict';
 		Theme = JSON.parse(Theme);
-		var SenseColorableSankeyVersion = "0.2";
+		var SenseColorableSankeyVersion = "0.4.1";
 		var runningTick = 1;
 
 		$( "<style>" ).html( cssContent ).appendTo( "head" );
