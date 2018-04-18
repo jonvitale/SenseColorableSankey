@@ -3,7 +3,7 @@
 	"description": "Colorable Sankey Graph",
 	"icon": "extension",
 	"type": "visualization",
-	"version": "0.4.1",
+	"version": "0.4.2",
 	"preview" : "sankey.png",
 	"author": "Jonathan M. Vitale"
 }

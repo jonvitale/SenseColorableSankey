@@ -2,6 +2,7 @@
 *	Jonathan Vitale
 *   Major code changes from Xavier Le Pitre's version 2.31
 *
+* 	v0.4.2: A qHeight of 10,000 doesn't work - too many cells. Reducing to 1000
 *	v0.4.1: terminal nodes no longer pushed to edge of display
 *	v0.4:
 *		- if data is very large will incrementally grow data (using backend api to grow hypercube in callback paint functions).
@@ -57,7 +58,7 @@ define(
 		
 		'use strict';
 		Theme = JSON.parse(Theme);
-		var SenseColorableSankeyVersion = "0.4.1";
+		var SenseColorableSankeyVersion = "0.4.2";
 		var runningTick = 1;
 
 		$( "<style>" ).html( cssContent ).appendTo( "head" );
@@ -69,10 +70,10 @@ define(
 					qMeasures: [],
 					qInitialDataFetch: [{
 						qWidth: 10,
-						qHeight: 10000
+						qHeight: 1000
 					}]
-				},
-				selectionMode: "QUICK"
+				}
+				, selectionMode: "QUICK"
 			},
 			definition: {
 				type: "items",
@@ -1030,13 +1031,13 @@ define(
 				
 				// JV Update v0.4: If the total number of rows in the hypercube is more than the amount we have gathered, request more (and repaint)
 				if(this.backendApi.getRowCount() > lastrow +1){
-			        //we havent got all the rows yet, so get some more, 1400 rows
+			        //we havent got all the rows yet, so get some more, 1000 rows
 			        //$("sk_"+ layout.qInfo.qId).empty();
 			        var requestPage = [{
 			            qTop: lastrow + 1,
 			            qLeft: 0,
 			            qWidth: 10, //should be # of columns
-			            qHeight: Math.min( 1400, this.backendApi.getRowCount() - lastrow )
+			            qHeight: Math.min( 1000, this.backendApi.getRowCount() - lastrow )
 			        }];
 			        this.backendApi.getData( requestPage ).then( function ( dataPages ) {
 			            //when we get the result trigger paint again
