@@ -2,14 +2,19 @@
 *	Jonathan Vitale
 *   Major code changes from Xavier Le Pitre's version 2.31
 *
-* 	v0.4.2: A qHeight of 10,000 doesn't work - too many cells. Reducing to 1000
-*	v0.4.1: terminal nodes no longer pushed to edge of display
 *	v0.4:
 *		- if data is very large will incrementally grow data (using backend api to grow hypercube in callback paint functions).
 *		- Make show null nodes default setting so users can see all of data, selection box is in Node Options
 *		- Also in Node Options, allow users to hide nodes with a given text, e.g., "Not Yet", separate multiple by ";"
 *		- Finally, in Node Options, allow users to select minimum size of a null
 *		- Similarly, in Link Options, allow users to hide links with < minimum size
+*	 	v0.4.1: 
+*	 		- terminal nodes no longer pushed to edge of display
+*	 	v0.4.2: 
+*	 		- Reduced # of rows called in initialProperties (to 1000 from 10,000)
+*	 	v0.4.3: 
+*	 		- Can use the function RGB instead of a string for a color
+* 	v0.4.2: A qHeight of 10,000 doesn't work - too many cells. Reducing to 1000
 *
 *	v0.3:
 *		- updated flow coloring to be dimension based. We now calculate the outflow for each dimension. Will ignore the final dimension
@@ -938,8 +943,15 @@ define(
 								}							
 							} else if (qDimColorUser[i].choice == "single"){
 								colors = colors.concat(typeof qDimColorUser[i].single === "object" ? qDimColorUser[i].single.color : qDimColorUser[i].single);
-							} else if (qDimColorUser[i].choice == "expression" && typeof row[i].qAttrExps.qValues !== "undefined" && row[i].qAttrExps.qValues.length >= 0 && typeof row[i].qAttrExps.qValues[0].qText !== "undefined") {
-								colors = colors.concat(row[i].qAttrExps.qValues[0].qText);
+							} else if (qDimColorUser[i].choice == "expression" && typeof row[i].qAttrExps.qValues !== "undefined" && row[i].qAttrExps.qValues.length >= 0){
+								if (typeof row[i].qAttrExps.qValues[0].qText === "string") {
+									colors = colors.concat(row[i].qAttrExps.qValues[0].qText);
+								} else if  (typeof row[i].qAttrExps.qValues[0].qNum === "number") {
+									var colHex = row[i].qAttrExps.qValues[0].qNum.toString(16);
+									// for some reason the alpha comes first, so let's remove those values
+									colHex = "#" + colHex.substr(2, 6); // + colHex.substr(0, 2);
+									colors = colors.concat(colHex);
+								} 
 							} else {
 								colors = colors.concat("#888888"); //may happen if expression fails
 							}				
@@ -991,8 +1003,15 @@ define(
 								}							
 							} else if (qFlowUser[i].choice == "single"){
 								flowColors = flowColors.concat(typeof qFlowUser.single === "object" ? qFlowUser.single.color : qFlowUser.single);
-							} else if (qFlowUser[i].choice == "expression" && typeof row[i].qAttrExps.qValues !== "undefined" && row[i].qAttrExps.qValues.length >= 1 && typeof row[i].qAttrExps.qValues[1].qText !== "undefined") {
-								flowColors = flowColors.concat(row[i].qAttrExps.qValues[1].qText);
+							} else if (qFlowUser[i].choice == "expression" && typeof row[i].qAttrExps.qValues !== "undefined" && row[i].qAttrExps.qValues.length >= 1) {
+								if (typeof row[i].qAttrExps.qValues[1].qText === "string") {
+									flowColors = flowColors.concat(row[i].qAttrExps.qValues[1].qText);
+								} else if  (typeof row[i].qAttrExps.qValues[1].qNum === "number") {
+									var colHex = row[i].qAttrExps.qValues[1].qNum.toString(16);
+									// for some reason the alpha comes first, so let's remove those values
+									colHex = "#" + colHex.substr(2, 6); // + colHex.substr(0, 2);
+									flowColors = flowColors.concat(colHex);
+								} 
 							} else {
 								flowColors = flowColors.concat("#888888"); //may happen if expression fails
 							}	
