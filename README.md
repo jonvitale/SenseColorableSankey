@@ -20,9 +20,14 @@ D3.js
 
 TODO: Check how the images work with measures.
 
+v0.5:
+	- New options in "Sankey Settings" to disable selections on nodes or flow.
+ 	- Tooltips are now differentiated by id of containing object, that way multiple sankeys on the same page should work.
+ 	v0.5.1: Changed import of js/qlik to qlik. ht mindspank
 v0.4: Provide link and node options to eliminate text and have minimum size.
 	v0.4.1: Terminal nodes are no longer pushed to the edge.
 	v0.4.2: Reduced # of rows called in initialProperties (to 1000 from 10,000)
+	v0.4.3: Can use the function RGB instead of a string for a color
 v0.3: Flow color is now determined at the dimension level. Will hide dimensions with missing data. Exports to image.
 v0.2: Can now sort on dimensions. Assign dimension values a numeric value - choose ascending or descending.
 V0.1: Can color dimensions by expression. This is used to color the nodes. Retains options from original. Also color flow by expression.

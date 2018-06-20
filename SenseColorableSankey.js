@@ -2,6 +2,10 @@
 *	Jonathan Vitale
 *   Major code changes from Xavier Le Pitre's version 2.31
 *
+* v0.5
+* 	- New options in "Sankey Settings" to disable selecting on nodes or flow.
+* 	- Tooltips are now differentiated by id of containing object, that way multiple sankeys on the same page should work.
+*  v0.5.1: Changed import of js/qlik to qlik. ht mindspank
 *	v0.4:
 *		- if data is very large will incrementally grow data (using backend api to grow hypercube in callback paint functions).
 *		- Make show null nodes default setting so users can see all of data, selection box is in Node Options
@@ -14,7 +18,6 @@
 *	 		- Reduced # of rows called in initialProperties (to 1000 from 10,000)
 *	 	v0.4.3: 
 *	 		- Can use the function RGB instead of a string for a color
-* 	v0.4.2: A qHeight of 10,000 doesn't work - too many cells. Reducing to 1000
 *
 *	v0.3:
 *		- updated flow coloring to be dimension based. We now calculate the outflow for each dimension. Will ignore the final dimension
@@ -51,7 +54,7 @@ requirejs.config({
 define(
 	[
 	"jquery", 
-	"js/qlik",
+	"qlik",
 	"text!./style.css",
 	"text!themes/old/sense/theme.json",
 	"./md5.min",
@@ -101,14 +104,14 @@ define(
 								ref:"qDef.myColorSelection.auto",
 								options: [
 									{
-                                    	value: true,
-                                    	label: "Auto"
-                                	}, {
-                                    	value: false,
-                                        label: "Custom"
-                                    }
-                                ], 
-                                defaultValue: true
+                  	value: true,
+                  	label: "Auto"
+	              	}, {
+                  	value: false,
+                    label: "Custom"
+                  }
+	              ], 
+	              defaultValue: true
 							},
 							colorChoice:{
 								type:"string",
@@ -249,14 +252,14 @@ define(
 								ref:"qDef.myFlowColorSelection.auto",
 								options: [
 									{
-                                    	value: true,
-                                    	label: "Auto"
-                                	}, {
-                                    	value: false,
-                                        label: "Custom"
-                                    }
-                                ]
-                                ,defaultValue: true
+	                	value: true,
+	                	label: "Auto"
+	              	}, {
+                  	value: false,
+                    label: "Custom"
+                  }
+	              ]
+	              ,defaultValue: true
 							},
 							flowColorChoice:{
 								type:"string",
@@ -277,7 +280,7 @@ define(
 										}
 									} else {
 										return false;
-									} return
+									}
 								}	
 							},
 							// the following two objects are moved from the "Sankey Settings" section to here.
@@ -319,7 +322,7 @@ define(
 										}
 									} else {
 										return false;
-									} return
+									}
 								}
 							},
 							flowColorPersistence:{
@@ -345,7 +348,7 @@ define(
 										}
 									} else {
 										return false;
-									} return
+									}
 								}
 							},
 							flowColorSingle:{
@@ -364,7 +367,7 @@ define(
 										}
 									} else {
 										return false;
-									} return
+									}
 								}
 							},
 							flowColorExpression:{
@@ -396,14 +399,14 @@ define(
 								ref:"qDef.mySortSelection.auto",
 								options: [
 									{
-                                    	value: true,
-                                    	label: "Auto"
-                                	}, {
-                                    	value: false,
-                                        label: "Expression"
-                                    }
-                                ], 
-                                defaultValue: true
+                    	value: true,
+                    	label: "Auto"
+                	}, {
+                    	value: false,
+                        label: "Expression"
+                    }
+                ], 
+                defaultValue: true
 							},
 
 							sortExpression:{
@@ -430,15 +433,15 @@ define(
 								ref:"qDef.mySortSelection.ascending",
 								options: [
 									{
-                                    	value: true,
-                                    	label: "Ascending"
-                                	}, {
-                                    	value: false,
-                                        label: "Descending"
-                                    }
-                                ], 
-                                defaultValue: true,
-                                show : function(layout) {
+	                  	value: true,
+	                  	label: "Ascending"
+	              	}, {
+	                  	value: false,
+	                      label: "Descending"
+	                  }
+	              ], 
+	              defaultValue: true,
+	              show : function(layout) {
 									if (typeof layout === 'object'){
 										if (typeof layout.qDef.mySortSelection === 'object' && typeof layout.qDef.mySortSelection.auto !== 'undefined'){
 											return !layout.qDef.mySortSelection.auto;
@@ -466,6 +469,22 @@ define(
 								label: "Node Options",
 								type: "items",
 								items : {
+									enableNodeSelectionsSwitch:{
+										type: "boolean",
+										component: "switch",
+										label: "Enable node selections",
+										ref:"enableNodeSelections",
+										options: [
+											{
+                      	value: true,
+                      	label: "Enabled"
+                    	}, {
+                      	value: false,
+                        label: "Disabled"
+                      }
+                    ], 
+                    defaultValue: true
+									}, 
 									sortSwitch:{
 										type: "boolean",
 										component: "switch",
@@ -473,14 +492,14 @@ define(
 										ref:"displayDimensionLabels",
 										options: [
 											{
-		                                    	value: true,
-		                                    	label: "Show"
-		                                	}, {
-		                                    	value: false,
-		                                        label: "Hide"
-		                                    }
-		                                ], 
-		                                defaultValue: false
+                      	value: true,
+                      	label: "Show"
+                    	}, {
+                      	value: false,
+                        label: "Hide"
+                      }
+                    ], 
+                    defaultValue: false
 									}, 
 									nodeMin:{
 										type: "integer",
@@ -508,13 +527,27 @@ define(
 								label : "Flow Options",
 								type:"items",
 								items : {
-
+									enableFlowSelectionsSwitch:{
+										type: "boolean",
+										component: "switch",
+										label: "Enable flow selections",
+										ref:"enableFlowSelections",
+										options: [
+											{
+                        	value: true,
+                        	label: "Enabled"
+                    	}, {
+                        	value: false,
+                          label: "Disabled"
+                        }
+                    ], 
+                    defaultValue: true
+									},
 									limitFlow:{
 										ref: "limitFlow",
 										type: "boolean",
 										label: "Limit path combinations?",
-										default: true
-										
+										default: true										
 									},
 									flowMax:{
 										type: "integer",
@@ -737,12 +770,12 @@ define(
 						}
 					},	
 					addons: {  
-					     uses: "addons",  
-					     items: {  
-					          dataHandling: {  
-					               uses: "dataHandling"  
-					          }  
-					     }  
+				    uses: "addons",  
+				    items: {  
+		          dataHandling: {  
+		          	uses: "dataHandling"  
+		          }  
+				    }  
 					},
 					settings: {
 						uses: "settings"
@@ -780,10 +813,8 @@ define(
 					}
 				}		
 				 
-				 
 				// Persistent color function
 				var hashScale = d3.scale.linear().domain([1, 4294967295]).range([ 0, 19.9999 ]);
-				
 				
 				function hashL(str) {
 				  var hashL = 5381,
@@ -813,8 +844,7 @@ define(
 						return true;
 					}
 				}
-				
-						
+										
 				var _this 			= this;
 				  
 				var displayDimensionLabels = layout.displayDimensionLabels;  
@@ -835,7 +865,8 @@ define(
 				var offset 			= $element.offset();
 				var separator			= (layout.separateur === undefined ? "§" : layout.separateur);
 				var nbImageDrawn		= 0;
-				  
+				var enableNodeSelections = layout.enableNodeSelections === undefined ? true : layout.enableNodeSelections;
+				var enableFlowSelections = layout.enableFlowSelections === undefined ? true : layout.enableFlowSelections;  
 
 				//var flowColor = (layout.flowChoice == 2) ? layout.flowColorCustom : Theme.palette[layout.flowColor];
 				//var flowColor = layout.flowColorCustom.color;
@@ -1050,28 +1081,28 @@ define(
 				
 				// JV Update v0.4: If the total number of rows in the hypercube is more than the amount we have gathered, request more (and repaint)
 				if(this.backendApi.getRowCount() > lastrow +1){
-			        //we havent got all the rows yet, so get some more, 1000 rows
-			        //$("sk_"+ layout.qInfo.qId).empty();
-			        var requestPage = [{
-			            qTop: lastrow + 1,
-			            qLeft: 0,
-			            qWidth: 10, //should be # of columns
-			            qHeight: Math.min( 1000, this.backendApi.getRowCount() - lastrow )
-			        }];
-			        this.backendApi.getData( requestPage ).then( function ( dataPages ) {
-			            //when we get the result trigger paint again
-			            me.paint( $element, layout );
-			        });
+	        //we havent got all the rows yet, so get some more, 1000 rows
+	        //$("sk_"+ layout.qInfo.qId).empty();
+	        var requestPage = [{
+	            qTop: lastrow + 1,
+	            qLeft: 0,
+	            qWidth: 10, //should be # of columns
+	            qHeight: Math.min( 1000, this.backendApi.getRowCount() - lastrow )
+	        }];
+	        this.backendApi.getData( requestPage ).then( function ( dataPages ) {
+	            //when we get the result trigger paint again
+	            me.paint( $element, layout );
+	        });
 
-			        var id = "sk_"+ layout.qInfo.qId;
-			        if (document.getElementById(id)) {
-			        	var updateText = '<h3>Updating ' + '.'.repeat(runningTick++) + '</h3>';
-			        	if (runningTick > 10) runningTick = 1;
+	        var id = "sk_"+ layout.qInfo.qId;
+	        if (document.getElementById(id)) {
+	        	var updateText = '<h3>Updating ' + '.'.repeat(runningTick++) + '</h3>';
+	        	if (runningTick > 10) runningTick = 1;
 						$("#" + id).empty().append($(updateText));
 					} 
-			    } else { 
-			    	// JV Update v0.4: we won't display until we have all the data
-			    	
+			  } else { 
+			    
+			    // JV Update v0.4: we won't display until we have all the data
 
 					var id = "sk_"+ layout.qInfo.qId;
 							  
@@ -1333,28 +1364,28 @@ define(
 						}
 					}
 					
-					var link = svg.append("g").selectAll(".link").data(linkDetails).enter().append("path").attr("class", "link").attr("d", path)
-								.style("stroke-width",function(d) {
-									return Math.max(1, d.dy);
-								})
-								.style("stroke", function(d){
-									return d.FlowColor;
-								})
-								.sort(function(a, b) {
-									return b.dy - a.dy;
-								});
+					var link = svg.append("g").selectAll(".link").data(linkDetails).enter()
+						.append("path").attr("class", "link").attr("d", path)
+						.style("stroke-width",function(d) {
+							return Math.max(1, d.dy);
+						})
+						.style("stroke", function(d){
+							return d.FlowColor;
+						})
+						.sort(function(a, b) {
+							return b.dy - a.dy;
+						});					
 					
-					
-					$('.ttip').remove(); //We make sure there isn't any other tooltip div in the dom
+					$('#ttip-'+divName).remove(); //We make sure there isn't any other tooltip div in the dom
 
 					// Create tooltip div 
-					var  tooltip = d3.select("body")
-							.append("div")
-							.attr("class","ttip")
-							.attr("id","ttip")
-							.style("position", "absolute")
-							.style("z-index", "10")
-							.style("visibility", "hidden");	
+					var tooltip = d3.select("body")
+						.append("div")
+						.attr("class","ttip")
+						.attr("id","ttip-"+divName)
+						.style("position", "absolute")
+						.style("z-index", "10")
+						.style("visibility", "hidden");	
 					
 					//Link tooltip
 					link.on("mouseover", function(d){
@@ -1381,27 +1412,32 @@ define(
 					})
 					
 					node.on("click",function(d, i) {
-						//on passe a la fonction l'identifiant qElement precedemment stocké dans le nom et le nom de la dimension sous forme d'un tableau
-						
-						_this.backendApi.selectValues(
-							parseInt(d.name.split('~')[1].replace('end', qDim.length - 1)),
-							[ parseInt(d.name.split('~')[0].split('|')[1]) ],
-							true
-						);
+						if (typeof enableNodeSelections === 'undefined' || enableNodeSelections){
+							//on passe a la fonction l'identifiant qElement precedemment stocké dans le nom et le nom de la dimension sous forme d'un tableau
+							
+							_this.backendApi.selectValues(
+								parseInt(d.name.split('~')[1].replace('end', qDim.length - 1)),
+								[ parseInt(d.name.split('~')[0].split('|')[1]) ],
+								true
+							);
+							$('#ttip-'+divName).remove(); //remove tooltip object on click.
+						}
 					})
 					
 					link.on("click",function(d,i){
-						_this.backendApi.selectValues(
-							parseInt(d.target.name.split('~')[1].replace('end', qDim.length - 1)), //DAP: As we already selected a link, it make sense to select the source and target dimensions and filter the data
-							[ parseInt(d.target.name.split('~')[0].split('|')[1]) ],
-							true
-						);
-						_this.backendApi.selectValues(
-							parseInt(d.source.name.split('~')[1].replace('end', qDim.length - 1)),
-							[ parseInt(d.source.name.split('~')[0].split('|')[1]) ],
-							true
-						);	
-						$('.ttip').remove(); //remove tooltip object on click.
+						if (typeof enableFlowSelections === 'undefined' || enableFlowSelections){
+							_this.backendApi.selectValues(
+								parseInt(d.target.name.split('~')[1].replace('end', qDim.length - 1)), //DAP: As we already selected a link, it make sense to select the source and target dimensions and filter the data
+								[ parseInt(d.target.name.split('~')[0].split('|')[1]) ],
+								true
+							);
+							_this.backendApi.selectValues(
+								parseInt(d.source.name.split('~')[1].replace('end', qDim.length - 1)),
+								[ parseInt(d.source.name.split('~')[0].split('|')[1]) ],
+								true
+							);	
+							$('#ttip-'+divName).remove(); //remove tooltip object on click.
+						}
 					});		
 								
 					//dessin du noeud
@@ -1483,7 +1519,7 @@ define(
 						}
 						var entete = qDim[level] + ' : ' + d.name.split('|')[0];
 						var value=formatNumber(displayFormat,d.value,'',currencySymbol);
-							
+						console.log("node mouseover", d3.event.pageX, d3.event.pageY);	
 						tooltip.html("<b>"+entete+"</b><br/>"+value);			
 						return tooltip.style("visibility", "visible").style("top",(d3.event.pageY+10)+"px").style("left",(d3.event.pageX+10+edgeMargin)+"px");
 					})
@@ -1499,7 +1535,7 @@ define(
 						var entete = qDim[level] + ' : ' + d.name.split('|')[0];		
 						var value=formatNumber(displayFormat,d.value,'',currencySymbol);
 							
-				
+						console.log("node mousemove", d3.event.pageX, d3.event.pageY);	
 						tooltip.html("<b>"+entete+"</b><br/>"+value);
 						return tooltip.style("top",(d3.event.pageY+10)+"px").style("left",(d3.event.pageX+10+edgeMargin)+"px");
 					})
