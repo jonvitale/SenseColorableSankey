@@ -24,6 +24,7 @@ v0.5:
 	- New options in "Sankey Settings" to disable selections on nodes or flow.
  	- Tooltips are now differentiated by id of containing object, that way multiple sankeys on the same page should work.
  	v0.5.1: Changed import of js/qlik to qlik. ht mindspank
+ 	v0.5.2: Updated for September 2018 release
 v0.4: Provide link and node options to eliminate text and have minimum size.
 	v0.4.1: Terminal nodes are no longer pushed to the edge.
 	v0.4.2: Reduced # of rows called in initialProperties (to 1000 from 10,000)

@@ -6,6 +6,7 @@
 * 	- New options in "Sankey Settings" to disable selecting on nodes or flow.
 * 	- Tooltips are now differentiated by id of containing object, that way multiple sankeys on the same page should work.
 *  v0.5.1: Changed import of js/qlik to qlik. ht mindspank
+*  v0.5.2: Updated for September 2018 release
 *	v0.4:
 *		- if data is very large will incrementally grow data (using backend api to grow hypercube in callback paint functions).
 *		- Make show null nodes default setting so users can see all of data, selection box is in Node Options
@@ -56,7 +57,7 @@ define(
 	"jquery", 
 	"qlik",
 	"text!./style.css",
-	"text!themes/old/sense/theme.json",
+	"text!./theme.json",
 	"./md5.min",
 	"./d3.min",
 	"./colorsankeymore"	
@@ -66,7 +67,7 @@ define(
 		
 		'use strict';
 		Theme = JSON.parse(Theme);
-		var SenseColorableSankeyVersion = "0.4.2";
+		var SenseColorableSankeyVersion = "0.5.2";
 		var runningTick = 1;
 
 		$( "<style>" ).html( cssContent ).appendTo( "head" );
